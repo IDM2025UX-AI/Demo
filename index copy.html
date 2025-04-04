@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!--just record the progress, cannot close gmail tab-->
   <meta charset="UTF-8">
   <title>Gesture Recognition Test with Simulated Browser</title>
   <!-- Include Mediapipe Hands library and utilities -->
@@ -208,37 +209,16 @@
     function closeTab() {
       const tabs = document.querySelectorAll('.tab');
       const validTabs = Array.from(tabs).filter(tab => tab.querySelector('.tab-title').textContent.trim() !== '+');
-  
-      // If there is exactly one valid tab, remove it (and the plus tab) to show a blank page
-      if (validTabs.length === 1) {
-        // Remove the only valid tab
-        const currentTab = validTabs[0];
-        currentTab.parentNode.removeChild(currentTab);
-        
-        // Remove the plus tab if it exists
-        const plusTab = Array.from(tabs).find(tab => tab.querySelector('.tab-title').textContent.trim() === '+');
-        if (plusTab) {
-          plusTab.parentNode.removeChild(plusTab);
+      if (validTabs.length <= 1) return; // Do nothing if only one tab remains
+      const currentTab = document.querySelector('.tab.active');
+      if (currentTab) {
+        let nextTab = currentTab.nextElementSibling;
+        if (nextTab && nextTab.querySelector('.tab-title') && nextTab.querySelector('.tab-title').textContent.trim() === '+') {
+          nextTab = currentTab.previousElementSibling;
         }
-        
-        // Update the browser content to show a blank page
-        const contentDiv = document.querySelector('.browser-content');
-        contentDiv.innerHTML = '<p>Blank page</p>';
-        return;
-      }
-  
-      // If there are more than one valid tabs, proceed with normal closing behavior
-      if (validTabs.length > 1) {
-        const currentTab = document.querySelector('.tab.active');
-        if (currentTab) {
-          let nextTab = currentTab.nextElementSibling;
-          if (nextTab && nextTab.querySelector('.tab-title') && nextTab.querySelector('.tab-title').textContent.trim() === '+') {
-            nextTab = currentTab.previousElementSibling;
-          }
-          currentTab.parentNode.removeChild(currentTab);
-          if (nextTab) {
-            nextTab.classList.add('active');
-          }
+        currentTab.parentNode.removeChild(currentTab);
+        if (nextTab) {
+          nextTab.classList.add('active');
         }
       }
       updateBrowserContent();
