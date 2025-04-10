@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gesture Google Slides Demo</title>
+  <style>
+    /* Global styles */
+    html, body {
+      margin: 0; 
+      padding: 0; 
+      height: 100%; 
+      font-family: Arial, sans-serif; 
+      background-color: #f5f5f5;
+    }
+    /* Top bar */
+    #topBar {
+      display: flex;
+      align-items: center;
+      background-color: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      padding: 0 10px;
+      height: 50px;
+    }
+    #titleArea {
+      flex: 1;
+      display: flex;
+      align-items: center;
+    }
+    #titleArea h2 {
+      margin: 0;
+      font-weight: 400;
+      font-size: 16px;
+      color: #444;
+    }
+    #topBar button {
+      background-color: #fff;
+      border: none;
+      cursor: pointer;
+      padding: 6px 12px;
+      font-size: 14px;
+      color: #444;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    #topBar button:hover {
+      background-color: #f0f0f0;
+    }
+    /* Toolbar (File, Edit, View...) */
+    #menuBar {
+      background-color: #fafafa;
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    #menuBar span {
+      margin-right: 20px;
+      font-size: 14px;
+      color: #555;
+      cursor: pointer;
+    }
+    #menuBar span:hover {
+      text-decoration: underline;
+    }
+
+    /* Layout container */
+    .container {
+      display: flex;
+      width: 100%;
+      height: calc(100% - 90px); /* Combined height of top bar and toolbar: 50+40=90 */
+    }
+    /* Sidebar for slide thumbnails */
+    #sidebar {
+      width: 160px;
+      background-color: #fff;
+      box-shadow: 1px 0 5px rgba(0,0,0,0.1);
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .thumbnail {
+      background-color: #e0e0e0;
+      margin-bottom: 10px;
+      height: 80px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .thumbnail:hover {
+      background-color: #d0d0d0;
+    }
+
+    /* Main content area */
+    #mainArea {
+      flex: 1;
+      position: relative;
+      margin: 10px;
+      overflow: hidden;
+      background-color: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Slide wrapper area */
+    #slideWrapper {
+      width: 800px; 
+      height: 450px; 
+      background-color: #fff; 
+      border: 1px solid #ccc;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Slide content area */
+    #slideArea {
+      width: 90%;
+      height: 80%;
+      border: 1px solid #ccc;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
+    }
+    #slideArea h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    #slideArea p {
+      margin: 10px 0 0;
+      font-size: 16px;
+      color: #666;
+    }
+
+    /* MediaPipe video and canvas */
+    #video {
+      display: none;
+    }
+    #output_canvas {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      width: 320px;
+      height: 240px;
+      border: 1px solid #ccc;
+      background-color: rgba(255,255,255,0.8);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <div id="topBar">
+    <div id="titleArea">
+      <h2>Untitled presentation</h2>
+    </div>
+    <button>Share</button>
+    <button style="margin-left: 10px;">Present</button>
+  </div>
+
+  <!-- Toolbar -->
+  <div id="menuBar">
+    <span>File</span>
+    <span>Edit</span>
+    <span>View</span>
+    <span>Insert</span>
+    <span>Format</span>
+    <span>Tools</span>
+    <span>Add-ons</span>
+    <span>Help</span>
+  </div>
+
+  <!-- Layout container -->
+  <div class="container">
+    <!-- Sidebar for slide thumbnails -->
+    <div id="sidebar">
+      <div class="thumbnail">Slide 1</div>
+      <div class="thumbnail">Slide 2</div>
+      <div class="thumbnail">Slide 3</div>
+      <div class="thumbnail">Slide 4</div>
+    </div>
+
+    <!-- Main content area -->
+    <div id="mainArea">
+      <div id="slideWrapper">
+        <div id="slideArea">
+          <h1>Welcome to slides</h1>
+          <p>You can start to control with your hands!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video and canvas for drawing gestures -->
+  <video id="video" playsinline></video>
+  <canvas id="output_canvas"></canvas>
+
+  <!-- MediaPipe Hands and utils scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+    // Retain the same gesture detection logic as before
+    const videoElement = document.getElementById('video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    hands.onResults(onResults);
+
+    function getDistance(p1, p2) {
+      let dx = p1.x - p2.x;
+      let dy = p1.y - p2.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function isPinching(landmarks) {
+      // Consider pinch when the distance between thumb and index finger is less than 0.1 (normalized)
+      return getDistance(landmarks[4], landmarks[8]) < 0.1;
+    }
+
+    function isPointing(landmarks) {
+      // Simple check: if the index finger tip (landmark[8]) is above its proximal joint (landmark[6]), consider it as pointing
+      return landmarks[8].y < landmarks[6].y;
+    }
+
+    function isPalmOpen(landmarks) {
+      // Check if the other four fingers are extended
+      return (landmarks[8].y < landmarks[6].y &&
+              landmarks[12].y < landmarks[10].y &&
+              landmarks[16].y < landmarks[14].y &&
+              landmarks[20].y < landmarks[18].y);
+    }
+
+    function onResults(results) {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      // Perform a horizontal flip on the canvas to correct hand image orientation
+      canvasCtx.translate(canvasElement.width, 0);
+      canvasCtx.scale(-1, 1);
+
+      // Draw the flipped image
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      // Draw gesture landmarks and connectors, then execute gesture classification and corresponding action
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        for (const landmarks of results.multiHandLandmarks) {
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
+          drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 2 });
+          const gestureName = classifyGesture(landmarks);
+          performAction(gestureName);
+        }
+      } else {
+        gestureDiv.innerText = "No gesture detected";
+      }
+
+      canvasCtx.restore();
+    }
+
+    // Start the camera
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+
+    // Global variables for managing gesture interaction state
+    let selectedElement = document.getElementById('slideArea');
+    let currentScale = 1;
+    let currentTranslate = { x: 0, y: 0 };
+    let lastPinchDistance = null;
+    let lastDragPosition = null;
+    let editingMode = false;
+
+    // Adjust canvas size based on container dimensions
+    function resizeCanvas() {
+      canvasElement.width = canvasElement.clientWidth;
+      canvasElement.height = canvasElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+</html>

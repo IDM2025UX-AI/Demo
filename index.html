@@ -398,19 +398,26 @@
     function onResults(results) {
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+ 
+      // 对画布进行水平翻转，使手部图像方向修正
+      canvasCtx.translate(canvasElement.width, 0);
+      canvasCtx.scale(-1, 1);
+ 
+      // 绘制翻转后的图像
       canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-      // If hand landmarks are detected, draw connectors and landmarks
+ 
+      // 绘制手势关键点和连线，并执行手势分类及对应操作
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         for (const landmarks of results.multiHandLandmarks) {
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 5});
-          drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
+          drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 2 });
           const gestureName = classifyGesture(landmarks);
           performAction(gestureName);
         }
       } else {
         gestureDiv.innerText = "No gesture detected";
       }
+ 
       canvasCtx.restore();
     }
 
