@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Gesture Google Slides Demo</title>
   <style>
-    /* Global styles */
+    /* 全局样式 */
     html, body {
       margin: 0; 
       padding: 0; 
@@ -13,7 +13,7 @@
       font-family: Arial, sans-serif; 
       background-color: #f5f5f5;
     }
-    /* Top bar */
+    /* 顶部标题栏 */
     #topBar {
       display: flex;
       align-items: center;
@@ -46,7 +46,7 @@
     #topBar button:hover {
       background-color: #f0f0f0;
     }
-    /* Toolbar (File, Edit, View...) */
+    /* 工具栏 (File, Edit, View...) */
     #menuBar {
       background-color: #fafafa;
       display: flex;
@@ -65,13 +65,13 @@
       text-decoration: underline;
     }
 
-    /* Layout container */
+    /* 整体布局容器 */
     .container {
       display: flex;
       width: 100%;
-      height: calc(100% - 90px); /* Combined height of top bar and toolbar: 50+40=90 */
+      height: calc(100% - 90px); /* 顶部两栏的高度合计50+40=90 */
     }
-    /* Sidebar for slide thumbnails */
+    /* 左侧缩略图区域 */
     #sidebar {
       width: 160px;
       background-color: #fff;
@@ -94,7 +94,7 @@
       background-color: #d0d0d0;
     }
 
-    /* Main content area */
+    /* 主内容区 */
     #mainArea {
       flex: 1;
       position: relative;
@@ -106,7 +106,7 @@
       justify-content: center;
     }
 
-    /* Slide wrapper area */
+    /* 幻灯片外框区域 */
     #slideWrapper {
       width: 800px; 
       height: 450px; 
@@ -118,7 +118,7 @@
       justify-content: center;
     }
 
-    /* Slide content area */
+    /* slide 内容区域 */
     #slideArea {
       width: 90%;
       height: 80%;
@@ -140,7 +140,7 @@
       color: #666;
     }
 
-    /* MediaPipe video and canvas */
+    /* MediaPipe 视频和画布 */
     #video {
       display: none;
     }
@@ -157,7 +157,7 @@
   </style>
 </head>
 <body>
-  <!-- Top bar -->
+  <!-- 顶部标题栏 -->
   <div id="topBar">
     <div id="titleArea">
       <h2>Untitled presentation</h2>
@@ -166,7 +166,7 @@
     <button style="margin-left: 10px;">Present</button>
   </div>
 
-  <!-- Toolbar -->
+  <!-- 菜单工具栏 -->
   <div id="menuBar">
     <span>File</span>
     <span>Edit</span>
@@ -178,9 +178,9 @@
     <span>Help</span>
   </div>
 
-  <!-- Layout container -->
+  <!-- 主容器 -->
   <div class="container">
-    <!-- Sidebar for slide thumbnails -->
+    <!-- 左侧缩略图区域 -->
     <div id="sidebar">
       <div class="thumbnail">Slide 1</div>
       <div class="thumbnail">Slide 2</div>
@@ -188,7 +188,7 @@
       <div class="thumbnail">Slide 4</div>
     </div>
 
-    <!-- Main content area -->
+    <!-- 中间展示区 -->
     <div id="mainArea">
       <div id="slideWrapper">
         <div id="slideArea">
@@ -199,7 +199,7 @@
     </div>
   </div>
 
-  <!-- Video and canvas for drawing gestures -->
+  <!-- 视频与绘制手势的canvas -->
   <video id="video" playsinline></video>
   <canvas id="output_canvas"></canvas>
 
@@ -209,7 +209,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
   <script>
-    // Retain the same gesture detection logic as before
+    // 保持与之前相同的手势检测逻辑
     const videoElement = document.getElementById('video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
@@ -236,17 +236,17 @@
     }
 
     function isPinching(landmarks) {
-      // Consider pinch when the distance between thumb and index finger is less than 0.1 (normalized)
+      // 当拇指和食指距离小于 0.1（归一化单位）时认为是捏合
       return getDistance(landmarks[4], landmarks[8]) < 0.1;
     }
 
     function isPointing(landmarks) {
-      // Simple check: if the index finger tip (landmark[8]) is above its proximal joint (landmark[6]), consider it as pointing
+      // 简单判断：如果食指尖（landmark[8]）比其近节（landmark[6]）更靠上，则认为是指向状态
       return landmarks[8].y < landmarks[6].y;
     }
 
     function isPalmOpen(landmarks) {
-      // Check if the other four fingers are extended
+      // 判断除拇指外四指是否伸展
       return (landmarks[8].y < landmarks[6].y &&
               landmarks[12].y < landmarks[10].y &&
               landmarks[16].y < landmarks[14].y &&
@@ -254,32 +254,105 @@
     }
 
     function onResults(results) {
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      // Perform a horizontal flip on the canvas to correct hand image orientation
-      canvasCtx.translate(canvasElement.width, 0);
-      canvasCtx.scale(-1, 1);
+    // 如果检测到了手势，就执行手势逻辑并在右下角画布绘制关键点
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      let landmarks = results.multiHandLandmarks[0];
 
-      // Draw the flipped image
-      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-      // Draw gesture landmarks and connectors, then execute gesture classification and corresponding action
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        for (const landmarks of results.multiHandLandmarks) {
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
-          drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 2 });
-          const gestureName = classifyGesture(landmarks);
-          performAction(gestureName);
-        }
+      // 1. 如果检测到 palm open，认为进入“编辑模式”，显示蓝色虚线
+      if (isPalmOpen(landmarks)) {
+        editingMode = true;
+        selectedElement.style.border = '2px dashed #4285f4';
       } else {
-        gestureDiv.innerText = "No gesture detected";
+        editingMode = false;
+        selectedElement.style.border = 'none';
       }
 
-      canvasCtx.restore();
+      // 2. Pinch => 持续缩放
+      if (isPinching(landmarks)) {
+        if (lastPinchDistance === null) {
+          lastPinchDistance = getDistance(landmarks[4], landmarks[8]);
+        } else {
+          let currentPinchDistance = getDistance(landmarks[4], landmarks[8]);
+          let scaleFactor = currentPinchDistance / lastPinchDistance;
+          let newScale = currentScale * scaleFactor;
+
+          // 限制缩放范围
+          const minScale = 0.5;
+          const maxScale = 3.0;
+          if (newScale < minScale) newScale = minScale;
+          if (newScale > maxScale) newScale = maxScale;
+
+          currentScale = newScale;
+          selectedElement.style.transform = 
+            `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentScale})`;
+
+          // 为了连续缩放，更新 lastPinchDistance
+          lastPinchDistance = currentPinchDistance;
+        }
+        // Pinch时不进行拖拽
+        lastDragPosition = null;
+
+      // 3. Grabbing => 用手掌中心拖拽
+      } else if (isGrabbing(landmarks)) {
+        let center = getPalmCenter(landmarks);
+        let centerX = center.x * videoElement.width;
+        let centerY = center.y * videoElement.height;
+
+        if (lastDragPosition === null) {
+          lastDragPosition = { x: centerX, y: centerY };
+        } else {
+          let dx = centerX - lastDragPosition.x;
+          let dy = centerY - lastDragPosition.y;
+          currentTranslate.x += dx;
+          currentTranslate.y += dy;
+          selectedElement.style.transform = 
+            `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentScale})`;
+          lastDragPosition = { x: centerX, y: centerY };
+        }
+        // 抓取时重置 pinch 距离
+        lastPinchDistance = null;
+
+      } else {
+        // 如果当前手不是pinch也不是抓取，则重置相关状态
+        lastPinchDistance = null;
+        lastDragPosition = null;
+      }
+
+      // 在右下角画布里绘制手部关键点，并进行左右手对换处理
+      for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+        const landmarks = results.multiHandLandmarks[i];
+        let originalLabel = results.multiHandedness[i].label;
+        let handLabel;
+        if (originalLabel === 'Left') {
+          handLabel = 'Right';
+        } else if (originalLabel === 'Right') {
+          handLabel = 'Left';
+        } else {
+          handLabel = originalLabel;
+        }
+        // 示例：根据 handLabel 判断手势逻辑
+        // if (handLabel === 'Right') {
+        //   // 在此处理原本的左手逻辑
+        // } else {
+        //   // 在此处理原本的右手逻辑
+        // }
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
+        drawLandmarks(canvasCtx, landmarks, { color: '#FF0000', lineWidth: 2 });
+      }
+
+    } else {
+      // 没检测到手势就重置
+      lastPinchDistance = null;
+      lastDragPosition = null;
     }
 
-    // Start the camera
+    canvasCtx.restore();
+  }
+  
+    // 摄像头启动
     const camera = new Camera(videoElement, {
       onFrame: async () => {
         await hands.send({image: videoElement});
@@ -289,7 +362,7 @@
     });
     camera.start();
 
-    // Global variables for managing gesture interaction state
+    // 全局变量，用于管理手势交互状态
     let selectedElement = document.getElementById('slideArea');
     let currentScale = 1;
     let currentTranslate = { x: 0, y: 0 };
@@ -297,7 +370,48 @@
     let lastDragPosition = null;
     let editingMode = false;
 
-    // Adjust canvas size based on container dimensions
+    function getPalmCenter(landmarks) {
+    // 简单取 [0, 5, 9, 13, 17] 这些点的平均值
+    const idx = [0, 5, 9, 13, 17];
+    let sumX = 0, sumY = 0;
+    for (const i of idx) {
+      sumX += landmarks[i].x;
+      sumY += landmarks[i].y;
+    }
+    return {
+      x: sumX / idx.length,
+      y: sumY / idx.length
+    };
+  }
+
+  function isGrabbing(landmarks) {
+    // 如果不是 palm open，也不是 pinch，则认为是抓取
+    return (!isPalmOpen(landmarks) && !isPinching(landmarks));
+  }
+
+  // 保留原有的距离、手势判断函数，但做适当英文注释
+  function getDistance(p1, p2) {
+    let dx = p1.x - p2.x;
+    let dy = p1.y - p2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function isPinching(landmarks) {
+    // Consider pinch when distance(thumb_tip, index_tip) < 0.1
+    return getDistance(landmarks[4], landmarks[8]) < 0.1;
+  }
+
+  function isPalmOpen(landmarks) {
+    // Check if index/middle/ring/pinky are extended above their proximal joints
+    return (
+      landmarks[8].y < landmarks[6].y &&
+      landmarks[12].y < landmarks[10].y &&
+      landmarks[16].y < landmarks[14].y &&
+      landmarks[20].y < landmarks[18].y
+    );
+  }
+
+    // 根据画布容器大小，调整Canvas
     function resizeCanvas() {
       canvasElement.width = canvasElement.clientWidth;
       canvasElement.height = canvasElement.clientHeight;

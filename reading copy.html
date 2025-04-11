@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Reading Demo with Gestures</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      font-family: sans-serif;
+      overflow: hidden; /* Hide any scrollbars */
+    }
+
+    /* Container that fills the entire screen and holds the PDF */
+    .container {
+      display: none; /* Hidden until a PDF is uploaded */
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    /* The PDF view should fill the container fully */
+    .pdf-view {
+      width: 100%;
+      height: 100%;
+      background: #fff;
+    }
+
+    /* Full-size iframe for the PDF content */
+    #pdfPreview {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none; /* Will show once a PDF is uploaded */
+    }
+
+    /* The file input on top for selecting a PDF */
+    #pdfFileInput {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 999;
+    }
+
+    /* Hidden video for camera input */
+    #cameraInput {
+      display: none;
+      position: absolute;
+      width: 640px; /* Example size, can be changed */
+      height: 480px;
+    }
+
+    /* Canvas overlay for hand landmarks & potential drawing */
+    #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1000; /* Above everything else */
+    }
+
+    /* Action text overlay at bottom center */
+    #actionOverlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      z-index: 1100;
+      font-size: 14px;
+      display: none; /* shown on gesture detected */
+    }
+  </style>
+</head>
+<body>
+  <!-- File input to choose a PDF -->
+  <input type="file" id="pdfFileInput" accept="application/pdf">
+
+  <!-- Hidden video for capturing camera frames -->
+  <video id="cameraInput" autoplay playsinline></video>
+
+  <!-- A canvas for drawing hand landmarks & in mark mode -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- Text overlay to show recognized action -->
+  <div id="actionOverlay"></div>
+
+  <!-- Container that will hold the fullscreen PDF once uploaded -->
+  <div class="container">
+    <div class="pdf-view">
+      <iframe id="pdfPreview"></iframe>
+    </div>
+  </div>
+
+  <!-- MediaPipe dependencies (CDNs) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+
+  <script>
+    // ================ PDF Upload Logic ================
+    const pdfInput = document.getElementById('pdfFileInput');
+    const pdfFrame = document.getElementById('pdfPreview');
+    const container = document.querySelector('.container');
+
+    pdfInput.addEventListener('change', function (event) {
+      const file = event.target.files[0];
+      if (file && file.type === 'application/pdf') {
+        const fileURL = URL.createObjectURL(file);
+        pdfFrame.src = fileURL;
+        pdfFrame.style.display = 'block';
+        container.style.display = 'block';
+        pdfInput.style.display = 'none';
+      } else {
+        pdfFrame.src = '';
+        pdfFrame.style.display = 'none';
+        container.style.display = 'none';
+        alert('Please select a valid PDF file.');
+      }
+    });
+
+    // Helper: Scroll the PDF in its iframe by a certain delta.
+    function scrollIframe(delta) {
+      const innerDoc = pdfFrame.contentDocument || pdfFrame.contentWindow.document;
+      if (innerDoc && innerDoc.documentElement) {
+        innerDoc.documentElement.scrollTop += delta;
+      }
+    }
+
+    // ================ UI / Action Overlay ================
+    const actionOverlay = document.getElementById('actionOverlay');
+    let hideActionTimeout = null;
+    function showAction(msg) {
+      actionOverlay.textContent = msg;
+      actionOverlay.style.display = 'block';
+      if (hideActionTimeout) {
+        clearTimeout(hideActionTimeout);
+      }
+      hideActionTimeout = setTimeout(() => {
+        actionOverlay.style.display = 'none';
+      }, 2000);
+    }
+
+    // ================ Marking / Annotation Logic ================
+    let isMarkMode = false; // true if user is in the marking mode
+    let drawingPoints = []; // store lines drawn by index finger
+
+    function drawMarkLines(ctx) {
+      if (drawingPoints.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
+      for (let i = 1; i < drawingPoints.length; i++) {
+        ctx.lineTo(drawingPoints[i].x, drawingPoints[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function resetMarkLines() {
+      drawingPoints = [];
+    }
+
+    // ================ MediaPipe Hands Setup ================
+    const videoElement = document.getElementById('cameraInput');
+    const canvasElement = document.getElementById('overlayCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    function resizeOverlay() {
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeOverlay);
+    resizeOverlay();
+
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
+      }
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    hands.onResults(onResults);
+
+    function onResults(results) {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      if (isMarkMode) {
+        drawMarkLines(canvasCtx);
+      }
+
+      if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        return;
+      }
+
+      const scaleLineWidth = 1;
+      const scaleRadius = 2;
+
+      // Draw each hand
+      for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+        const landmarks = results.multiHandLandmarks[i];
+        window.drawConnectors(
+          canvasCtx,
+          landmarks,
+          window.HAND_CONNECTIONS,
+          {color: '#888888', lineWidth: scaleLineWidth}
+        );
+        window.drawLandmarks(
+          canvasCtx,
+          landmarks,
+          {color: '#FF0000', lineWidth: scaleLineWidth, radius: scaleRadius}
+        );
+      }
+
+      // If we detect double open palm, etc...
+      const handCount = results.multiHandLandmarks.length;
+      if (handCount === 2) {
+        const g1 = detectGesture(results.multiHandLandmarks[0]);
+        const g2 = detectGesture(results.multiHandLandmarks[1]);
+        if (g1.name === 'open' && g2.name === 'open' && g1.hold) {
+          showAction('Exit & Export Notes');
+        }
+      }
+
+      const mainHand = results.multiHandLandmarks[0];
+      const gesture = detectGesture(mainHand);
+      if (gesture.name && gesture.changed) {
+        showAction(gesture.name);
+        switch (gesture.name) {
+          case 'swipeUp':
+            scrollIframe(-400);
+            console.log('Previous page');
+            break;
+          case 'swipeDown':
+            scrollIframe(400);
+            console.log('Next page');
+            break;
+          case 'scrollUp':
+            scrollIframe(-100);
+            console.log('Scroll up');
+            break;
+          case 'scrollDown':
+            scrollIframe(100);
+            console.log('Scroll down');
+            break;
+          case 'zoomIn':
+            console.log('Zoom in');
+            break;
+          case 'zoomOut':
+            console.log('Zoom out');
+            break;
+          case 'enterMark':
+            isMarkMode = true;
+            resetMarkLines();
+            console.log('Enter marking mode');
+            break;
+          case 'exitMark':
+            isMarkMode = false;
+            console.log('Exit marking mode');
+            break;
+          default:
+            break;
+        }
+      }
+
+      // If in mark mode, track index finger tip for red line
+      if (isMarkMode) {
+        const indexTip = mainHand[8];
+        const x = indexTip.x * canvasElement.width;
+        const y = indexTip.y * canvasElement.height;
+        drawingPoints.push({ x, y });
+      }
+    }
+
+    // Basic gesture detect (placeholder)
+    let lastGestureName = '';
+    let gestureHoldFrames = 0;
+
+    function detectGesture(landmarks) {
+      const fingerSpread = checkFingerSpread(landmarks);
+      const isFist = checkFist(landmarks);
+      const isHalfFist = checkHalfFist(landmarks);
+      const isOK = checkOK(landmarks);
+      const movement = checkMovementDirection(landmarks);
+
+      let name = '';
+
+      if (isFist && movement.hold) {
+        name = (!isMarkMode) ? 'enterMark' : 'exitMark';
+      } else if (isOK) {
+        if (movement.forward) {
+          name = 'zoomIn';
+        } else if (movement.backward) {
+          name = 'zoomOut';
+        }
+      } else if (isHalfFist) {
+        if (movement.up) {
+          name = 'scrollUp';
+        } else if (movement.down) {
+          name = 'scrollDown';
+        }
+      } else if (fingerSpread > 0.8) {
+        if (movement.up) {
+          name = 'swipeUp';
+        } else if (movement.down) {
+          name = 'swipeDown';
+        }
+      }
+
+      let hold = false;
+      if (name !== '') {
+        if (name === lastGestureName) {
+          gestureHoldFrames++;
+          if (gestureHoldFrames > 10) {
+            hold = true;
+          }
+        } else {
+          gestureHoldFrames = 0;
+        }
+      }
+
+      const changed = (name !== lastGestureName && name !== '');
+      lastGestureName = name;
+      return { name, hold, changed };
+    }
+
+    function checkFingerSpread(landmarks) {
+      return 1;
+    }
+    function checkFist(landmarks) {
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d < 0.04);
+    }
+    function checkHalfFist(landmarks) {
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d >= 0.04 && d < 0.08);
+    }
+    function checkOK(landmarks) {
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d < 0.02);
+    }
+
+    let prevWrist = null;
+    function checkMovementDirection(landmarks) {
+      const wrist = landmarks[0];
+      const x = wrist.x;
+      const y = wrist.y;
+      if (!prevWrist) {
+        prevWrist = { x, y };
+      }
+      const dx = x - prevWrist.x;
+      const dy = y - prevWrist.y;
+      prevWrist = { x, y };
+
+      const threshold = 0.01;
+      const up = (dy < -threshold);
+      const down = (dy > threshold);
+      const forward = (dx < -threshold);
+      const backward = (dx > threshold);
+      const hold = (Math.abs(dx) < threshold && Math.abs(dy) < threshold);
+      return { up, down, forward, backward, hold };
+    }
+
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Camera Setup
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
+</html>

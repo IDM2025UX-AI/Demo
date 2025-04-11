@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simulated PDF Reading with Gestures</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      font-family: sans-serif;
+      overflow: hidden; /* Hide scrollbars on the main window */
+    }
+
+    /* Overall container for the reading interface */
+    .container {
+      display: none; /* hidden until 'upload a pdf' is clicked */
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #fff;
+    }
+
+    /* Left side thumbnail bar */
+    .thumbnail-panel {
+      width: 180px;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.2); /* Slightly translucent black */
+      overflow-y: auto;
+      float: left;
+    }
+
+    .thumb {
+      padding: 10px;
+      margin: 10px;
+      background: rgba(0, 0, 0, 0.3); /* More translucent black for each thumbnail */
+      color: #fff;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .thumb:hover {
+      background: rgba(0, 0, 0, 0.4);
+    }
+    .thumb.highlight {
+      background: #0066ff; /* highlight color for current page */
+    }
+
+    /* Right side: the main reading area */
+    .reading-area {
+      margin-left: 180px; /* leave space for the thumbnail panel */
+      height: 100%;
+      position: relative;
+      overflow: auto; /* we can scroll if content is tall */
+      background: #fafafa;
+      transition: transform 0.3s; /* for demo zoom effect */
+      transform-origin: top left;  /* used if we do scale() */
+    }
+
+    /* Each page content */
+    .pageContent {
+      width: 90%;
+      margin: 40px auto;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      display: none; /* only the current page is shown */
+    }
+
+    /* The 'upload pdf' button on top-left */
+    #fakeUploadBtn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 999;
+      padding: 8px 12px;
+      background: #2196f3;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    /* Hidden video for camera input */
+    #cameraInput {
+      display: none;
+      position: absolute;
+      width: 640px;
+      height: 480px;
+    }
+
+    /* Canvas overlay for hand landmarks & drawing */
+    #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* Action text overlay at bottom center */
+    #actionOverlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      z-index: 1100;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- A 'upload pdf' button to enter the reading interface -->
+  <button id="fakeUploadBtn">Upload a PDF to start reading</button>
+
+  <!-- Container that simulates the reading interface -->
+  <div class="container">
+    <!-- Left side thumbnails -->
+    <div class="thumbnail-panel" id="thumbnailPanel">
+      <div class="thumb" data-page="0">Page 1</div>
+      <div class="thumb" data-page="1">Page 2</div>
+      <div class="thumb" data-page="2">Page 3</div>
+      <div class="thumb" data-page="3">Page 4</div>
+    </div>
+
+    <!-- Right side reading area with multiple 'pages' -->
+    <div class="reading-area" id="readingArea">
+      <div class="pageContent" id="page0"></div>
+      <div class="pageContent" id="page1"></div>
+      <div class="pageContent" id="page2"></div>
+      <div class="pageContent" id="page3"></div>
+    </div>
+  </div>
+
+  <!-- Hidden video for capturing camera frames -->
+  <video id="cameraInput" autoplay playsinline></video>
+
+  <!-- A canvas for drawing hand landmarks & possible mark lines -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- Text overlay to show recognized action -->
+  <div id="actionOverlay"></div>
+
+  <!-- MediaPipe dependencies (CDNs) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+
+  <script>
+    // =============== Generate Random Content so page can be long ===============
+    function generateRandomContent() {
+      let text = '';
+      // produce a few paragraphs to exceed screen height
+      for(let i=0; i<15; i++){
+        text += `<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque viverra commodo mi, eget tristique elit posuere et. Donec dignissim metus arcu, vitae ultricies justo placerat sed. Sed quis risus vitae erat viverra aliquam. ${Math.random().toString(36).substring(2)}.</p>`;
+      }
+      return text;
+    }
+
+    // fill each page with random content so it will be scrollable
+    for(let i=0; i<4; i++){
+      const pgDiv = document.getElementById(`page${i}`);
+      if(pgDiv) {
+        pgDiv.innerHTML = `<h2>Page ${i+1} Title</h2>` + generateRandomContent();
+      }
+    }
+
+    // =============== Basic state for simulation ===============
+    let currentPage = 0;      // which page is currently displayed
+    let currentScale = 1.0;   // for 'zoomIn'/'zoomOut'
+    const totalPages = 4;
+
+    // references to some DOM
+    const container = document.querySelector('.container');
+    const fakeUploadBtn = document.getElementById('fakeUploadBtn');
+    const readingArea = document.getElementById('readingArea');
+    const thumbPanel = document.getElementById('thumbnailPanel');
+
+    // click the upload button => show container & default to page0
+    fakeUploadBtn.addEventListener('click', () => {
+      fakeUploadBtn.style.display = 'none';
+      container.style.display = 'block';
+      showPage(0);
+    });
+
+    // handle thumbnail clicks
+    thumbPanel.addEventListener('click', (e) => {
+      if(e.target.classList.contains('thumb')){
+        const pg = parseInt(e.target.dataset.page, 10);
+        showPage(pg);
+      }
+    });
+
+    function showPage(pg) {
+      // hide all pages
+      for(let i=0; i< totalPages; i++){
+        const pageDiv = document.getElementById(`page${i}`);
+        pageDiv.style.display = 'none';
+      }
+      // show the selected one
+      document.getElementById(`page${pg}`).style.display = 'block';
+
+      // highlight the corresponding thumbnail
+      const thumbs = thumbPanel.querySelectorAll('.thumb');
+      thumbs.forEach(t => t.classList.remove('highlight'));
+      thumbs[pg].classList.add('highlight');
+
+      currentPage = pg;
+      setScale(currentScale);
+    }
+
+    function nextPage() {
+      if(currentPage < totalPages-1){
+        currentPage++;
+        showPage(currentPage);
+      }
+    }
+    function prevPage() {
+      if(currentPage > 0){
+        currentPage--;
+        showPage(currentPage);
+      }
+    }
+
+    // scroll reading area up/down
+    function scrollReadingArea(delta) {
+      readingArea.scrollTop += delta;
+    }
+
+    // for 'zoomIn' / 'zoomOut'
+    function setScale(scaleVal){
+      readingArea.style.transform = `scale(${scaleVal})`;
+      currentScale = scaleVal;
+    }
+
+    // ============ Action Overlay ============
+    const actionOverlay = document.getElementById('actionOverlay');
+    let hideActionTimeout = null;
+    function showAction(msg){
+      actionOverlay.textContent = msg;
+      actionOverlay.style.display = 'block';
+      if(hideActionTimeout){
+        clearTimeout(hideActionTimeout);
+      }
+      hideActionTimeout = setTimeout(() => {
+        actionOverlay.style.display = 'none';
+      }, 2000);
+    }
+
+    // ============ Hand Tracking / Gesture Logic ============
+    const videoElement = document.getElementById('cameraInput');
+    const canvasElement = document.getElementById('overlayCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    let isMarkMode = false;
+    let drawingPoints = [];
+
+    function resizeOverlay(){
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeOverlay);
+    resizeOverlay();
+
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
+      }
+    });
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    hands.onResults(onResults);
+
+    // =========== 3) Add cooldown to avoid repeated triggers ===========
+    let lastGestureTime = 0; // store timestamp of last recognized gesture
+    const GESTURE_COOLDOWN_MS = 2000; // 2 seconds cooldown
+
+    function onResults(results) {
+      // clear
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      // if mark mode, draw red lines behind the hands
+      if(isMarkMode){
+        drawMarkLines(canvasCtx);
+      }
+
+      if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0){
+        return;
+      }
+
+      // draw each hand's landmarks
+      for(let i=0; i< results.multiHandLandmarks.length; i++){
+        const landmarks = results.multiHandLandmarks[i];
+        window.drawConnectors(
+          canvasCtx,
+          landmarks,
+          window.HAND_CONNECTIONS,
+          { color: '#888888', lineWidth: 1 }
+        );
+        window.drawLandmarks(
+          canvasCtx,
+          landmarks,
+          { color: '#FF0000', lineWidth: 1, radius: 2 }
+        );
+      }
+
+      // check if double open palm => exit & export
+      if(results.multiHandLandmarks.length===2){
+        const g1 = detectGesture(results.multiHandLandmarks[0]);
+        const g2 = detectGesture(results.multiHandLandmarks[1]);
+        if(g1.name==='open' && g2.name==='open' && g1.hold){
+          const now = Date.now();
+          if(now - lastGestureTime > GESTURE_COOLDOWN_MS){
+            lastGestureTime = now;
+            showAction('Exit & Export Notes');
+            // do logic...
+          }
+        }
+      }
+
+      // main logic with first hand
+      const mainHand = results.multiHandLandmarks[0];
+      const gesture = detectGesture(mainHand);
+
+      if(gesture.name && gesture.changed){
+        const now = Date.now();
+        // check cooldown
+        if(now - lastGestureTime < GESTURE_COOLDOWN_MS){
+          // too soon => ignore
+          return;
+        }
+        lastGestureTime = now;
+
+        // 4) if in mark mode, only accept 'exitMark', else show error
+        if(isMarkMode && gesture.name!=='exitMark'){
+          showAction('invalid posture now please keep drawing');
+          return;
+        }
+
+        // otherwise handle gesture normally
+        showAction(gesture.name);
+        switch(gesture.name){
+          case 'swipeUp':
+            // previous page
+            prevPage();
+            break;
+          case 'swipeDown':
+            // next page
+            nextPage();
+            break;
+          case 'scrollUp':
+            scrollReadingArea(-50);
+            break;
+          case 'scrollDown':
+            scrollReadingArea(50);
+            break;
+          case 'zoomIn':
+            setScale(currentScale+0.1);
+            break;
+          case 'zoomOut':
+            setScale(currentScale-0.1>0.1?currentScale-0.1:0.1);
+            break;
+          case 'enterMark':
+            isMarkMode = true;
+            drawingPoints = [];
+            break;
+          case 'exitMark':
+            isMarkMode = false;
+            break;
+          default:
+            break;
+        }
+      }
+
+      // if marking, record index finger path
+      if(isMarkMode){
+        // index tip = #8
+        const indexTip = mainHand[8];
+        const x = indexTip.x * canvasElement.width;
+        const y = indexTip.y * canvasElement.height;
+        drawingPoints.push({x, y});
+      }
+    }
+
+    function drawMarkLines(ctx){
+      if(drawingPoints.length<2) return;
+      ctx.save();
+      ctx.strokeStyle='red';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
+      for(let i=1; i< drawingPoints.length; i++){
+        ctx.lineTo(drawingPoints[i].x, drawingPoints[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // minimal gesture detection (same placeholders)
+    let lastGestureName = '';
+    let gestureHoldFrames = 0;
+    function detectGesture(landmarks){
+      const fingerSpread = checkFingerSpread(landmarks);
+      const isFist = checkFist(landmarks);
+      const isHalfFist = checkHalfFist(landmarks);
+      const isOK = checkOK(landmarks);
+      const movement = checkMovementDirection(landmarks);
+
+      let name='';
+      if(isFist && movement.hold){
+        name = (!isMarkMode)?'enterMark':'exitMark';
+      } else if(isOK){
+        if(movement.forward) name='zoomIn';
+        else if(movement.backward) name='zoomOut';
+      } else if(isHalfFist){
+        if(movement.up) name='scrollUp';
+        else if(movement.down) name='scrollDown';
+      } else if(fingerSpread>0.8){
+        if(movement.up) name='swipeUp';
+        else if(movement.down) name='swipeDown';
+        // open palm => 'open' used for double-hand check
+        else name='open';
+      }
+
+      let hold = false;
+      if(name!==''){
+        if(name===lastGestureName){
+          gestureHoldFrames++;
+          if(gestureHoldFrames>10){
+            hold=true;
+          }
+        } else {
+          gestureHoldFrames=0;
+        }
+      }
+      const changed = (name!==lastGestureName && name!=='');
+      lastGestureName = name;
+      return {name, hold, changed};
+    }
+
+    function checkFingerSpread(landmarks){
+      return 1; 
+    }
+    function checkFist(landmarks){
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d<0.04);
+    }
+    function checkHalfFist(landmarks){
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d>=0.04 && d<0.08);
+    }
+    function checkOK(landmarks){
+      const d = distance(landmarks[4], landmarks[8]);
+      return (d<0.02);
+    }
+
+    let prevWrist = null;
+    function checkMovementDirection(landmarks){
+      const wrist = landmarks[0];
+      const x = wrist.x;
+      const y = wrist.y;
+      if(!prevWrist){
+        prevWrist={x,y};
+      }
+      const dx = x - prevWrist.x;
+      const dy = y - prevWrist.y;
+      prevWrist={x,y};
+
+      const threshold=0.01;
+      const up = dy< -threshold;
+      const down = dy> threshold;
+      const forward = dx< -threshold;
+      const backward= dx> threshold;
+      const hold = (Math.abs(dx)<threshold && Math.abs(dy)<threshold);
+
+      return {up,down,forward,backward,hold};
+    }
+
+    function distance(a,b){
+      const dx=a.x-b.x;
+      const dy=a.y-b.y;
+      return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    // camera setup
+    const camera = new Camera(videoElement, {
+      onFrame: async ()=>{
+        await hands.send({image: videoElement});
+      },
+      width:640, height:480
+    });
+    camera.start();
+  </script>
+</body>
+</html>
