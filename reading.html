@@ -327,7 +327,7 @@
           const now = Date.now();
           if(now - lastGestureTime > GESTURE_COOLDOWN_MS){
             lastGestureTime = now;
-            showAction('Exit & Export Notes');
+            showAction('Open Palms (Exit & Export Notes)');
             // do logic...
           }
         }
@@ -348,12 +348,13 @@
 
         // 4) if in mark mode, only accept 'exitMark', else show error
         if(isMarkMode && gesture.name!=='exitMark'){
-          showAction('invalid posture now please keep drawing');
+          showAction('Invalid posture now, please keep drawing');
           return;
         }
 
         // otherwise handle gesture normally
-        showAction(gesture.name);
+        const displayText = gestureNameToText(gesture.name);
+        showAction(displayText);
         switch(gesture.name){
           case 'swipeUp':
             // previous page
@@ -434,7 +435,7 @@
         if(movement.up) name='swipeUp';
         else if(movement.down) name='swipeDown';
         // open palm => 'open' used for double-hand check
-        else name='open';
+        else name='invalid posture';
       }
 
       let hold = false;
@@ -481,7 +482,7 @@
       const dy = y - prevWrist.y;
       prevWrist={x,y};
 
-      const threshold=0.01;
+      const threshold=0.005;
       const up = dy< -threshold;
       const down = dy> threshold;
       const forward = dx< -threshold;
@@ -505,6 +506,32 @@
       width:640, height:480
     });
     camera.start();
+
+    // =========== Map each gesture.name to "HandName (Action)" ===========
+    function gestureNameToText(gName) {
+      switch(gName){
+        case 'swipeUp':
+          return 'Open Palm (Previous Page)';
+        case 'swipeDown':
+          return 'Open Palm (Next Page)';
+        case 'scrollUp':
+          return 'Half Fist (Scroll Up)';
+        case 'scrollDown':
+          return 'Half Fist (Scroll Down)';
+        case 'zoomIn':
+          return 'OK (Zoom In)';
+        case 'zoomOut':
+          return 'OK (Zoom Out)';
+        case 'enterMark':
+          return 'Fist (Enter Mark)';
+        case 'exitMark':
+          return 'Fist (Exit Mark)';
+        case 'open':
+          return 'Open Palm';
+        default:
+          return gName;
+      }
+    }
   </script>
 </body>
 </html>
