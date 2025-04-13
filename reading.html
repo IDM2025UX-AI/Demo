@@ -450,11 +450,11 @@
       } else if (isFist(landmarks)) {
         if (movement.hold) name = (!isMarkMode ? 'enterMark' : 'exitMark');
         else name = 'invalid posture';
-      } else if (spread >= 0.3 && spread < 0.65) {
+  } else if (spread >= 0.3 && spread < 0.55) {
         if (movement.up) name = 'scrollUp';
         else if (movement.down) name = 'scrollDown';
         else name = 'invalid posture';
-      } else if (spread >= 0.65) {
+  } else if (spread >= 0.55) {
         if (movement.up) name = 'swipeUp';
         else if (movement.down) name = 'swipeDown';
         else name = 'invalid posture';
@@ -496,7 +496,10 @@
     function isOK(landmarks) {
       const thumbIndexDist = distance(landmarks[4], landmarks[8]);
       const middleToPalm = distance(landmarks[12], landmarks[0]);
-      return (thumbIndexDist < 0.03 && middleToPalm > 0.1);
+      const ringToPalm = distance(landmarks[16], landmarks[0]);
+      const pinkyToPalm = distance(landmarks[20], landmarks[0]);
+      const avgOthers = (middleToPalm + ringToPalm + pinkyToPalm) / 3;
+      return (thumbIndexDist < 0.03 && avgOthers > 0.12);
     }
     
     function isFist(landmarks) {
