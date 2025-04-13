@@ -365,10 +365,10 @@
             nextPage();
             break;
           case 'scrollUp':
-            scrollReadingArea(-50);
+            scrollReadingArea(-70);
             break;
           case 'scrollDown':
-            scrollReadingArea(50);
+            scrollReadingArea(70);
             break;
           case 'zoomIn':
             setScale(currentScale+0.1);
@@ -415,60 +415,64 @@
     // minimal gesture detection (same placeholders)
     let lastGestureName = '';
     let gestureHoldFrames = 0;
-    function detectGesture(landmarks){
-      const fingerSpread = checkFingerSpread(landmarks);
-      const isFist = checkFist(landmarks);
-      const isHalfFist = checkHalfFist(landmarks);
-      const isOK = checkOK(landmarks);
+    function detectGesture(landmarks) {
+      const spread = checkFingerSpread(landmarks);
+      const d4_8 = distance(landmarks[4], landmarks[8]);
       const movement = checkMovementDirection(landmarks);
 
-      let name='';
-      if(isFist && movement.hold){
-        name = (!isMarkMode)?'enterMark':'exitMark';
-      } else if(isOK){
-        if(movement.forward) name='zoomIn';
-        else if(movement.backward) name='zoomOut';
-      } else if(isHalfFist){
-        if(movement.up) name='scrollUp';
-        else if(movement.down) name='scrollDown';
-      } else if(fingerSpread>0.8){
-        if(movement.up) name='swipeUp';
-        else if(movement.down) name='swipeDown';
-        // open palm => 'open' used for double-hand check
-        else name='invalid posture';
+      let name = '';
+
+      if (d4_8 < 0.08) {
+        if (movement.forward) name = 'zoomIn';
+        else if (movement.backward) name = 'zoomOut';
+        else name = 'invalid posture';
+      } else if (spread < 0.3) {
+        if (movement.hold) name = (!isMarkMode ? 'enterMark' : 'exitMark');
+        else name = 'invalid posture';
+      } else if (spread >= 0.3 && spread < 0.5) {
+        if (movement.up) name = 'scrollUp';
+        else if (movement.down) name = 'scrollDown';
+        else name = 'invalid posture';
+      } else if (spread >= 0.5) {
+        if (movement.up) name = 'swipeUp';
+        else if (movement.down) name = 'swipeDown';
+        else name = 'invalid posture';
+      } else {
+        name = 'invalid posture';
       }
 
       let hold = false;
-      if(name!==''){
-        if(name===lastGestureName){
+      if (name !== '') {
+        if (name === lastGestureName) {
           gestureHoldFrames++;
-          if(gestureHoldFrames>10){
-            hold=true;
+          if (gestureHoldFrames > 10) {
+            hold = true;
           }
         } else {
-          gestureHoldFrames=0;
+          gestureHoldFrames = 0;
         }
       }
-      const changed = (name!==lastGestureName && name!=='');
+
+      const changed = (name !== lastGestureName && name !== '');
       lastGestureName = name;
-      return {name, hold, changed};
+      return { name, hold, changed };
     }
 
-    function checkFingerSpread(landmarks){
-      return 1; 
+  function measureFingerSpread(landmarks) {
+    const wrist = landmarks[0];
+    let sum = 0;
+    const tips = [4, 8, 12, 16, 20];
+    for (let i = 0; i < tips.length; i++) {
+        sum += distance(wrist, landmarks[tips[i]]);
+      }
+      return sum / tips.length;
     }
-    function checkFist(landmarks){
-      const d = distance(landmarks[4], landmarks[8]);
-      return (d<0.04);
+
+    function checkFingerSpread(landmarks) {
+      return measureFingerSpread(landmarks);
     }
-    function checkHalfFist(landmarks){
-      const d = distance(landmarks[4], landmarks[8]);
-      return (d>=0.04 && d<0.08);
-    }
-    function checkOK(landmarks){
-      const d = distance(landmarks[4], landmarks[8]);
-      return (d<0.02);
-    }
+
+    
 
     let prevWrist = null;
     function checkMovementDirection(landmarks){
@@ -526,8 +530,6 @@
           return 'Fist (Enter Mark)';
         case 'exitMark':
           return 'Fist (Exit Mark)';
-        case 'open':
-          return 'Open Palm';
         default:
           return gName;
       }
