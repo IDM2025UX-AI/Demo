@@ -32,6 +32,22 @@
       float: left;
     }
 
+    .thumb-preview {
+      width: 100%;
+      height: 120px;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      margin-bottom: 4px;
+    }
+
+    .thumb-label {
+      text-align: center;
+      color: #fff;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
     .thumb {
       padding: 10px;
       margin: 10px;
@@ -42,10 +58,10 @@
       border-radius: 4px;
     }
     .thumb:hover {
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(120, 120, 120, 0.4);
     }
     .thumb.highlight {
-      background: #0066ff; /* highlight color for current page */
+      background: #ffe770; /* highlight color for current page */
     }
 
     /* Right side: the main reading area */
@@ -132,10 +148,22 @@
   <div class="container">
     <!-- Left side thumbnails -->
     <div class="thumbnail-panel" id="thumbnailPanel">
-      <div class="thumb" data-page="0">Page 1</div>
-      <div class="thumb" data-page="1">Page 2</div>
-      <div class="thumb" data-page="2">Page 3</div>
-      <div class="thumb" data-page="3">Page 4</div>
+      <div class="thumb" data-page="0">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 1</div>
+      </div>
+      <div class="thumb" data-page="1">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 2</div>
+      </div>
+      <div class="thumb" data-page="2">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 3</div>
+      </div>
+      <div class="thumb" data-page="3">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 4</div>
+      </div>
     </div>
 
     <!-- Right side reading area with multiple 'pages' -->
@@ -166,7 +194,7 @@
     function generateRandomContent() {
       let text = '';
       // produce a few paragraphs to exceed screen height
-      for(let i=0; i<15; i++){
+      for(let i=0; i<30; i++){
         text += `<p class="line-text" data-line="${i}">Lorem ipsum dolor sit amet... ${Math.random().toString(36).substring(2)}.</p>`;
       }
       return text;
@@ -407,28 +435,26 @@
 
     
 
-    // minimal gesture detection (same placeholders)
     let lastGestureName = '';
     let gestureHoldFrames = 0;
     function detectGesture(landmarks) {
       const spread = checkFingerSpread(landmarks);
-      const d4_8 = distance(landmarks[4], landmarks[8]);
       const movement = checkMovementDirection(landmarks);
 
       let name = '';
 
-      if (d4_8 < 0.05) {
+      if (isOK(landmarks)) {
         if (movement.forward) name = 'zoomIn';
         else if (movement.backward) name = 'zoomOut';
         else name = 'invalid posture';
-      } else if (spread < 0.3) {
+      } else if (isFist(landmarks)) {
         if (movement.hold) name = (!isMarkMode ? 'enterMark' : 'exitMark');
         else name = 'invalid posture';
-      } else if (spread >= 0.3 && spread < 0.55) {
+      } else if (spread >= 0.3 && spread < 0.65) {
         if (movement.up) name = 'scrollUp';
         else if (movement.down) name = 'scrollDown';
         else name = 'invalid posture';
-      } else if (spread >= 0.55) {
+      } else if (spread >= 0.65) {
         if (movement.up) name = 'swipeUp';
         else if (movement.down) name = 'swipeDown';
         else name = 'invalid posture';
@@ -465,6 +491,20 @@
 
     function checkFingerSpread(landmarks) {
       return measureFingerSpread(landmarks);
+    }
+    
+    function isOK(landmarks) {
+      const thumbIndexDist = distance(landmarks[4], landmarks[8]);
+      const middleToPalm = distance(landmarks[12], landmarks[0]);
+      return (thumbIndexDist < 0.03 && middleToPalm > 0.1);
+    }
+    
+    function isFist(landmarks) {
+      const tips = [4, 8, 12, 16, 20];
+      const wrist = landmarks[0];
+      const total = tips.reduce((sum, i) => sum + distance(landmarks[i], wrist), 0);
+      const avg = total / tips.length;
+      return avg < 0.08;
     }
 
     
