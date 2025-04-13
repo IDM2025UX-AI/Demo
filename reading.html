@@ -70,6 +70,10 @@
       display: none; /* only the current page is shown */
     }
 
+    .highlight-line {
+      background-color: yellow;
+    }
+
     /* The 'upload pdf' button on top-left */
     #fakeUploadBtn {
       position: absolute;
@@ -163,7 +167,7 @@
       let text = '';
       // produce a few paragraphs to exceed screen height
       for(let i=0; i<15; i++){
-        text += `<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque viverra commodo mi, eget tristique elit posuere et. Donec dignissim metus arcu, vitae ultricies justo placerat sed. Sed quis risus vitae erat viverra aliquam. ${Math.random().toString(36).substring(2)}.</p>`;
+        text += `<p class="line-text" data-line="${i}">Lorem ipsum dolor sit amet... ${Math.random().toString(36).substring(2)}.</p>`;
       }
       return text;
     }
@@ -294,14 +298,11 @@
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      // if mark mode, draw red lines behind the hands
-      if(isMarkMode){
-        drawMarkLines(canvasCtx);
-      }
 
       if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0){
         return;
       }
+      const mainHand = results.multiHandLandmarks[0];
 
       // draw each hand's landmarks
       for(let i=0; i< results.multiHandLandmarks.length; i++){
@@ -334,7 +335,6 @@
       }
 
       // main logic with first hand
-      const mainHand = results.multiHandLandmarks[0];
       const gesture = detectGesture(mainHand);
 
       if(gesture.name && gesture.changed){
@@ -395,22 +395,17 @@
         const x = indexTip.x * canvasElement.width;
         const y = indexTip.y * canvasElement.height;
         drawingPoints.push({x, y});
+
+        const elements = document.elementsFromPoint(x, y);
+        const targetLine = elements.find(el => el.classList && el.classList.contains('line-text'));
+
+        if (targetLine && !targetLine.classList.contains('highlight-line')) {
+            targetLine.classList.add('highlight-line');
+        }
       }
     }
 
-    function drawMarkLines(ctx){
-      if(drawingPoints.length<2) return;
-      ctx.save();
-      ctx.strokeStyle='red';
-      ctx.lineWidth=3;
-      ctx.beginPath();
-      ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
-      for(let i=1; i< drawingPoints.length; i++){
-        ctx.lineTo(drawingPoints[i].x, drawingPoints[i].y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
+    
 
     // minimal gesture detection (same placeholders)
     let lastGestureName = '';
@@ -422,18 +417,18 @@
 
       let name = '';
 
-      if (d4_8 < 0.08) {
+      if (d4_8 < 0.05) {
         if (movement.forward) name = 'zoomIn';
         else if (movement.backward) name = 'zoomOut';
         else name = 'invalid posture';
       } else if (spread < 0.3) {
         if (movement.hold) name = (!isMarkMode ? 'enterMark' : 'exitMark');
         else name = 'invalid posture';
-      } else if (spread >= 0.3 && spread < 0.5) {
+      } else if (spread >= 0.3 && spread < 0.55) {
         if (movement.up) name = 'scrollUp';
         else if (movement.down) name = 'scrollDown';
         else name = 'invalid posture';
-      } else if (spread >= 0.5) {
+      } else if (spread >= 0.55) {
         if (movement.up) name = 'swipeUp';
         else if (movement.down) name = 'swipeDown';
         else name = 'invalid posture';
