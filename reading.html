@@ -212,6 +212,8 @@
     let currentPage = 0;      // which page is currently displayed
     let currentScale = 1.0;   // for 'zoomIn'/'zoomOut'
     const totalPages = 4;
+    let fistHoldStart = null;
+let wasPinching = false;
 
     // references to some DOM
     const container = document.querySelector('.container');
@@ -296,6 +298,7 @@
     const canvasCtx = canvasElement.getContext('2d');
     let isMarkMode = false;
     let drawingPoints = [];
+let openHoldStart = null;
 
     function resizeOverlay(){
       canvasElement.width = window.innerWidth;
@@ -321,21 +324,42 @@
     // =========== 3) Add cooldown to avoid repeated triggers ===========
     let lastGestureTime = 0; // store timestamp of last recognized gesture
     const GESTURE_COOLDOWN_MS = 2000; // 2 seconds cooldown
+let pinchTimestamps = [];
+
+function isPinch(hand) {
+  return distance(hand[4], hand[8]) < 0.03;
+}
+
+function isMiddlePinch(hand) {
+  return distance(hand[4], hand[12]) < 0.035;
+}
+
+function areHandsClose(h1, h2) {
+  return distance(h1[0], h2[0]) < 0.1;
+}
 const actionHistory = [];
 
 function performUndo() {
   if (actionHistory.length > 0) {
     const last = actionHistory.pop();
-    if (last.type === 'swipeUp' || last.type === 'swipeDown') {
-      showPage(last.page);
-    } else if (last.type === 'scrollUp' || last.type === 'scrollDown') {
-      readingArea.scrollTop = last.scroll;
-    } else if (last.type === 'zoomIn' || last.type === 'zoomOut') {
-      setScale(last.scale);
-    } else if (last.type === 'highlight') {
-      if (last.element && last.element.classList.contains('highlight-line')) {
-        last.element.classList.remove('highlight-line');
-      }
+    switch (last.type) {
+      case 'page':
+        showPage(last.page);
+        currentPage = last.page;
+        break;
+      case 'scroll':
+        readingArea.scrollTop = last.scroll;
+        break;
+      case 'zoom':
+        setScale(last.scale);
+        break;
+      case 'highlight':
+        if (last.element && last.element.classList.contains('highlight-line')) {
+          last.element.classList.remove('highlight-line');
+        }
+        break;
+      default:
+        break;
     }
   }
 }
@@ -343,104 +367,150 @@ function performUndo() {
     function onResults(results) {
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      // always draw all detected hands
+      if (results.multiHandLandmarks) {
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const mLandmarks = results.multiHandLandmarks[i];
+          window.drawConnectors(
+            canvasCtx,
+            mLandmarks,
+            window.HAND_CONNECTIONS,
+            { color: '#888888', lineWidth: 1 }
+          );
+          window.drawLandmarks(
+            canvasCtx,
+            mLandmarks,
+            { color: '#FF0000', lineWidth: 1, radius: 2 }
+          );
+        }
+      }
 
 
       if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0){
         return;
       }
       const mainHand = results.multiHandLandmarks[0];
-
-      // draw each hand's landmarks
-      for(let i=0; i< results.multiHandLandmarks.length; i++){
-        const landmarks = results.multiHandLandmarks[i];
-        window.drawConnectors(
-          canvasCtx,
-          landmarks,
-          window.HAND_CONNECTIONS,
-          { color: '#888888', lineWidth: 1 }
-        );
-        window.drawLandmarks(
-          canvasCtx,
-          landmarks,
-          { color: '#FF0000', lineWidth: 1, radius: 2 }
-        );
-      }
-
+      
+      // 1) Enter/Exit Mark Mode: both hands open palm hold for 1s
       if (results.multiHandLandmarks.length === 2) {
-        const hand1 = results.multiHandLandmarks[0];
-        const hand2 = results.multiHandLandmarks[1];
- 
-        const index1 = hand1[8]; // index fingertip hand 1
-        const index2 = hand2[8]; // index fingertip hand 2
-        const d = distance(index1, index2);
- 
-        if (d < 0.05) {
+        const h1 = results.multiHandLandmarks[0];
+        const h2 = results.multiHandLandmarks[1];
+        const spread1 = checkFingerSpread(h1);
+        const spread2 = checkFingerSpread(h2);
+        if (spread1 >= 0.6 && spread2 >= 0.6) {
+          if (!openHoldStart) {
+            openHoldStart = Date.now();
+          } else if (Date.now() - openHoldStart > 1000) {
+            const now = Date.now();
+            if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
+              lastGestureTime = now;
+              isMarkMode = !isMarkMode;
+              showAction(isMarkMode ? 'Enter Mark Mode' : 'Exit Mark Mode');
+            }
+            openHoldStart = null;
+          }
+          return;
+        } else {
+          openHoldStart = null;
+        }
+      }
+      
+      // 3) Highlight in mark mode
+      if (isMarkMode) {
+        const indexTip = mainHand[8];
+        const x = indexTip.x * canvasElement.width;
+        const y = indexTip.y * canvasElement.height;
+        const elements = document.elementsFromPoint(x, y);
+        const targetLine = elements.find(el => el.classList && el.classList.contains('line-text'));
+        if (targetLine && !targetLine.classList.contains('highlight-line')) {
+          targetLine.classList.add('highlight-line');
+          actionHistory.push({ type: 'highlight', element: targetLine });
+        }
+        return;
+      }
+      
+      // 4) Scroll Up/Down: single-hand pinch + vertical move
+      if (isPinch(mainHand)) {
+        const m = checkMovementDirection(mainHand);
+        if (m.up) {
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'scroll', scroll: readingArea.scrollTop });
+          showAction('Scroll Up');
+          scrollReadingArea(-70);
+          return;
+        } else if (m.down) {
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'scroll', scroll: readingArea.scrollTop });
+          showAction('Scroll Down');
+          scrollReadingArea(70);
+          return;
+        }
+      }
+      
+      // 5) Next Page: double pinch on pinch start
+      {
+        const isCurrentlyPinching = isPinch(mainHand);
+        // detect pinch start edge
+        if (isCurrentlyPinching && !wasPinching) {
+          const now = Date.now();
+          // keep only recent timestamps
+          pinchTimestamps = pinchTimestamps.filter(t => now - t < 600);
+          pinchTimestamps.push(now);
+          if (pinchTimestamps.length >= 2) {
+            lastGestureTime = now;
+            actionHistory.push({ type: 'page', page: currentPage });
+            showAction('Next Page');
+            if (currentPage < totalPages - 1) {
+              nextPage();
+            } else {
+              showPage(0);
+            }
+            pinchTimestamps = [];
+          }
+        }
+        wasPinching = isCurrentlyPinching;
+        // if pinch start handled a double pinch, do not proceed to other gestures
+        if (pinchTimestamps.length === 0 && isCurrentlyPinching && pinchTimestamps.length === 0) {
+          // pinch in progress but no double-pinch, ignore or continue
+        }
+        // no early return here; continue to other gestures if needed
+      }
+      
+      // 6) Zoom In/Out: thumb+middle pinch then horizontal movement
+      if (isMiddlePinch(mainHand)) {
+        const m = checkMovementDirection(mainHand);
+        if (m.forward) { // moving hand left
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'zoom', scale: currentScale });
+          showAction('Thumb+Middle Pinch Left (Zoom In)');
+          setScale(currentScale + 0.1);
+          return;
+        } else if (m.backward) { // moving hand right
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'zoom', scale: currentScale });
+          showAction('Thumb+Middle Pinch Right (Zoom Out)');
+          setScale(Math.max(0.1, currentScale - 0.1));
+          return;
+        }
+      }
+      
+      // X) Undo: wave (open palm only) + horizontal move
+      if (!isPinch(mainHand) && !isMiddlePinch(mainHand) && checkFingerSpread(mainHand) >= 0.6) {
+        const m = checkMovementDirection(mainHand);
+        if (m.forward || m.backward) {
           const now = Date.now();
           if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
             lastGestureTime = now;
-            showAction('Index Fingers Crossed (Undo)');
+            showAction('Wave (Undo)');
             performUndo();
-            isMarkMode = false; // also exit mark mode if needed
           }
           return;
         }
       }
+      // New Gesture Logic End
 
-      // main logic with first hand
-      const gesture = detectGesture(mainHand);
 
-      if(gesture.name && gesture.changed){
-        const now = Date.now();
-        // check cooldown
-        if(now - lastGestureTime < GESTURE_COOLDOWN_MS){
-          // too soon => ignore
-          return;
-        }
-        lastGestureTime = now;
 
-        // 4) if in mark mode, only accept 'exitMark', else show error
-        if(isMarkMode && gesture.name!=='exitMark'){
-          showAction('Invalid posture now, please keep drawing');
-          return;
-        }
-
-        // push current state to actionHistory
-        actionHistory.push({type: gesture.name, page: currentPage, scroll: readingArea.scrollTop, scale: currentScale});
-        // otherwise handle gesture normally
-        const displayText = gestureNameToText(gesture.name);
-        showAction(displayText);
-        switch(gesture.name){
-          case 'swipeUp':
-            // previous page
-            prevPage();
-            break;
-          case 'swipeDown':
-            // next page
-            nextPage();
-            break;
-          case 'scrollUp':
-            scrollReadingArea(-70);
-            break;
-          case 'scrollDown':
-            scrollReadingArea(70);
-            break;
-          case 'zoomIn':
-            setScale(currentScale+0.1);
-            break;
-          case 'zoomOut':
-            setScale(currentScale-0.1>0.1?currentScale-0.1:0.1);
-            break;
-          case 'enterMark':
-            isMarkMode = true;
-            drawingPoints = [];
-            break;
-          case 'exitMark':
-            isMarkMode = false;
-            break;
-          default:
-            break;
-        }
-      }
 
       // if marking, record index finger path
       if(isMarkMode){

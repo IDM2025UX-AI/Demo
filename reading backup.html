@@ -321,6 +321,24 @@
     // =========== 3) Add cooldown to avoid repeated triggers ===========
     let lastGestureTime = 0; // store timestamp of last recognized gesture
     const GESTURE_COOLDOWN_MS = 2000; // 2 seconds cooldown
+const actionHistory = [];
+
+function performUndo() {
+  if (actionHistory.length > 0) {
+    const last = actionHistory.pop();
+    if (last.type === 'swipeUp' || last.type === 'swipeDown') {
+      showPage(last.page);
+    } else if (last.type === 'scrollUp' || last.type === 'scrollDown') {
+      readingArea.scrollTop = last.scroll;
+    } else if (last.type === 'zoomIn' || last.type === 'zoomOut') {
+      setScale(last.scale);
+    } else if (last.type === 'highlight') {
+      if (last.element && last.element.classList.contains('highlight-line')) {
+        last.element.classList.remove('highlight-line');
+      }
+    }
+  }
+}
 
     function onResults(results) {
       // clear
@@ -348,17 +366,23 @@
         );
       }
 
-      // check if double open palm => exit & export
-      if(results.multiHandLandmarks.length===2){
-        const g1 = detectGesture(results.multiHandLandmarks[0]);
-        const g2 = detectGesture(results.multiHandLandmarks[1]);
-        if(g1.name==='open' && g2.name==='open' && g1.hold){
+      if (results.multiHandLandmarks.length === 2) {
+        const hand1 = results.multiHandLandmarks[0];
+        const hand2 = results.multiHandLandmarks[1];
+ 
+        const index1 = hand1[8]; // index fingertip hand 1
+        const index2 = hand2[8]; // index fingertip hand 2
+        const d = distance(index1, index2);
+ 
+        if (d < 0.05) {
           const now = Date.now();
-          if(now - lastGestureTime > GESTURE_COOLDOWN_MS){
+          if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
             lastGestureTime = now;
-            showAction('Open Palms (Exit & Export Notes)');
-            // do logic...
+            showAction('Index Fingers Crossed (Undo)');
+            performUndo();
+            isMarkMode = false; // also exit mark mode if needed
           }
+          return;
         }
       }
 
@@ -380,6 +404,8 @@
           return;
         }
 
+        // push current state to actionHistory
+        actionHistory.push({type: gesture.name, page: currentPage, scroll: readingArea.scrollTop, scale: currentScale});
         // otherwise handle gesture normally
         const displayText = gestureNameToText(gesture.name);
         showAction(displayText);
@@ -429,6 +455,7 @@
 
         if (targetLine && !targetLine.classList.contains('highlight-line')) {
             targetLine.classList.add('highlight-line');
+            actionHistory.push({ type: 'highlight', element: targetLine });
         }
       }
     }
