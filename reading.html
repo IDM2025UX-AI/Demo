@@ -166,6 +166,49 @@
       margin-bottom: 12px; 
       color: #707070;
     }
+    
+    #gestureViz {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 48px;
+      height: 48px;
+      pointer-events: none;
+      z-index: 1001;
+    }
+    
+    /* Background circle behind the small gesture dots */
+    #gestureViz::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-radius: 50%;
+    }
+
+    #gestureViz .viz-dot {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #888;
+      transition: all 0.2s ease;
+      z-index: 1002;
+    }
+
+    #gestureViz .viz-dot.mark {
+      background: yellow;
+    }
+
+    #gestureViz .viz-dot.undo::after {
+      content: '✕';
+      color: rgb(0, 0, 0);
+      position: absolute;
+      top: -1px; left: 1px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -221,6 +264,7 @@
 
   <!-- Text overlay to show recognized action -->
   <div id="actionOverlay"></div>
+  <div id="gestureViz"></div>
 
   <!-- MediaPipe dependencies (CDNs) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
@@ -563,9 +607,57 @@
     // Removed setScale function as scaling via CSS transform is no longer used
     const actionOverlay = document.getElementById('actionOverlay');
     let hideActionTimeout = null;
+    function updateViz(type) {
+      const viz = document.getElementById('gestureViz');
+      viz.innerHTML = '';  // clear
+      switch(type) {
+        case 'Scroll Up':
+          // draw a circle
+          viz.innerHTML = '<div class="viz-dot" style="top:4px;left:18px"></div>';
+          break;
+        case 'Scroll Down':
+          viz.innerHTML = '<div class="viz-dot" style="top:32px;left:18px"></div>';
+          break;
+        case 'Zoom In':
+          viz.innerHTML = '<div class="viz-dot" style="top:18px;left:4px"></div>';
+          break;
+        case 'Zoom Out':
+          viz.innerHTML = '<div class="viz-dot" style="top:18px;left:32px"></div>';
+          break;
+        case 'Enter Mark Mode':
+        case 'Exit Mark Mode':
+          // aligned two
+          viz.innerHTML =
+            '<div class="viz-dot" style="top:18px;left:8px"></div>' +
+            '<div class="viz-dot" style="top:18px;left:28px"></div>';
+          break;
+        case 'Next Page':
+          // blink twice
+          viz.innerHTML =
+            '<div class="viz-dot" style="top:18px;left:8px;opacity:0"></div>' +
+            '<div class="viz-dot" style="top:18px;left:28px;opacity:0"></div>';
+          setTimeout(()=> {
+            viz.querySelectorAll('.viz-dot').forEach(d=>d.style.opacity=1);
+          }, 50);
+          setTimeout(()=> {
+            viz.querySelectorAll('.viz-dot').forEach(d=>d.style.opacity=0);
+          }, 250);
+          setTimeout(()=> {
+            viz.querySelectorAll('.viz-dot').forEach(d=>d.style.opacity=1);
+          }, 450);
+          break;
+        case 'Wave (Undo)':
+          viz.innerHTML = '<div class="viz-dot undo" style="top:18px;left:18px"></div>';
+          break;
+        default:
+          // other no
+          break;
+      }
+    }
     function showAction(msg){
       actionOverlay.textContent = msg;
       actionOverlay.style.display = 'block';
+      updateViz(msg); 
       if(hideActionTimeout){
         clearTimeout(hideActionTimeout);
       }
