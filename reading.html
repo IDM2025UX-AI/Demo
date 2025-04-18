@@ -71,8 +71,7 @@
       position: relative;
       overflow: auto; /* we can scroll if content is tall */
       background: #fafafa;
-      transition: transform 0.3s; /* for demo zoom effect */
-      transform-origin: top left;  /* used if we do scale() */
+      
     }
 
     /* Each page content */
@@ -94,7 +93,7 @@
  
     .line-text {
       white-space: pre-wrap;
-      font-family: Inter;
+      font-family: "Times New Roman", Times, serif;
       font-size: 18px;
       line-height: 1.5;
       margin: 0 0 8px 20%; /* push block right by 20% of container */
@@ -158,14 +157,14 @@
       top: 12px;
       right: 12px;
       font-size: 14px;
-      color: #666;
+      color: #707070;
     }
 
     .pageContent .line-text.first-line {
       font-family: Georgia, serif;
       font-size: 16px;    
       margin-bottom: 12px; 
-      color: #666;
+      color: #707070;
     }
   </style>
 </head>
@@ -229,6 +228,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
 
   <script>
+    let currentFontSize = 18;  // initial font size in px
+    function updateFontSize(newSize) {
+      currentFontSize = newSize;
+      document.querySelectorAll('.line-text').forEach(el => {
+        el.style.fontSize = `${currentFontSize}px`;
+      });
+    }
    
     // =============== Basic state for simulation ===============
     const pdfTexts = [
@@ -512,8 +518,9 @@
 
     // handle thumbnail clicks
     thumbPanel.addEventListener('click', (e) => {
-      if(e.target.classList.contains('thumb')){
-        const pg = parseInt(e.target.dataset.page, 10);
+      const thumb = e.target.closest('.thumb');
+      if (thumb && thumbPanel.contains(thumb)) {
+        const pg = parseInt(thumb.dataset.page, 10);
         showPage(pg);
       }
     });
@@ -533,7 +540,6 @@
       thumbs[pg].classList.add('highlight');
 
       currentPage = pg;
-      setScale(currentScale);
     }
 
     function nextPage() {
@@ -554,13 +560,7 @@
       readingArea.scrollTop += delta;
     }
 
-    // for 'zoomIn' / 'zoomOut'
-    function setScale(scaleVal){
-      readingArea.style.transform = `scale(${scaleVal})`;
-      currentScale = scaleVal;
-    }
-
-    // ============ Action Overlay ============
+    // Removed setScale function as scaling via CSS transform is no longer used
     const actionOverlay = document.getElementById('actionOverlay');
     let hideActionTimeout = null;
     function showAction(msg){
@@ -633,7 +633,7 @@ function performUndo() {
         readingArea.scrollTop = last.scroll;
         break;
       case 'zoom':
-        setScale(last.scale);
+        updateFontSize(last.fontSize);
         break;
       case 'highlight':
         if (last.element && last.element.classList.contains('highlight-line')) {
@@ -763,15 +763,15 @@ function performUndo() {
         const m = checkMovementDirection(mainHand);
         if (m.forward) { // moving hand left
           lastGestureTime = Date.now();
-          actionHistory.push({ type: 'zoom', scale: currentScale });
-          showAction('Thumb+Middle Pinch Left (Zoom In)');
-          setScale(currentScale + 0.1);
+          actionHistory.push({ type: 'zoom', fontSize: currentFontSize });
+          showAction('Zoom In');
+          updateFontSize(currentFontSize + 2);
           return;
         } else if (m.backward) { // moving hand right
           lastGestureTime = Date.now();
-          actionHistory.push({ type: 'zoom', scale: currentScale });
-          showAction('Thumb+Middle Pinch Right (Zoom Out)');
-          setScale(Math.max(0.1, currentScale - 0.1));
+          actionHistory.push({ type: 'zoom', fontSize: currentFontSize });
+          showAction('Zoom Out');
+          updateFontSize(Math.max(10, currentFontSize - 2));
           return;
         }
       }

@@ -71,8 +71,7 @@
       position: relative;
       overflow: auto; /* we can scroll if content is tall */
       background: #fafafa;
-      transition: transform 0.3s; /* for demo zoom effect */
-      transform-origin: top left;  /* used if we do scale() */
+      
     }
 
     /* Each page content */
@@ -84,12 +83,25 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       padding: 20px;
       display: none; /* only the current page is shown */
+      position: relative;
+      text-align: center;
     }
 
     .highlight-line {
       background-color: yellow;
     }
-
+ 
+    .line-text {
+      white-space: pre-wrap;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 18px;
+      line-height: 1.5;
+      margin: 0 0 8px 20%; /* push block right by 20% of container */
+      width: 60%;          /* set block width to 60% */
+      display: inline-block;
+      text-align: left;
+    }
+ 
     /* The 'upload pdf' button on top-left */
     #fakeUploadBtn {
       position: absolute;
@@ -138,6 +150,22 @@
       font-size: 14px;
       display: none;
     }
+
+    .pageContent .page-number {
+      font-family: Georgia, serif;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      font-size: 14px;
+      color: #707070;
+    }
+
+    .pageContent .line-text.first-line {
+      font-family: Georgia, serif;
+      font-size: 16px;    
+      margin-bottom: 12px; 
+      color: #707070;
+    }
   </style>
 </head>
 <body>
@@ -164,6 +192,14 @@
         <div class="thumb-preview"></div>
         <div class="thumb-label">Page 4</div>
       </div>
+      <div class="thumb" data-page="4">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 5</div>
+      </div>
+      <div class="thumb" data-page="5">
+        <div class="thumb-preview"></div>
+        <div class="thumb-label">Page 6</div>
+      </div>
     </div>
 
     <!-- Right side reading area with multiple 'pages' -->
@@ -172,6 +208,8 @@
       <div class="pageContent" id="page1"></div>
       <div class="pageContent" id="page2"></div>
       <div class="pageContent" id="page3"></div>
+      <div class="pageContent" id="page4"></div>
+      <div class="pageContent" id="page5"></div>  
     </div>
   </div>
 
@@ -190,28 +228,280 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
 
   <script>
-    // =============== Generate Random Content so page can be long ===============
-    function generateRandomContent() {
-      let text = '';
-      // produce a few paragraphs to exceed screen height
-      for(let i=0; i<30; i++){
-        text += `<p class="line-text" data-line="${i}">Lorem ipsum dolor sit amet... ${Math.random().toString(36).substring(2)}.</p>`;
-      }
-      return text;
+    let currentFontSize = 18;  // initial font size in px
+    function updateFontSize(newSize) {
+      currentFontSize = newSize;
+      document.querySelectorAll('.line-text').forEach(el => {
+        el.style.fontSize = `${currentFontSize}px`;
+      });
     }
-
-    // fill each page with random content so it will be scrollable
-    for(let i=0; i<4; i++){
-      const pgDiv = document.getElementById(`page${i}`);
-      if(pgDiv) {
-        pgDiv.innerHTML = `<h2>Page ${i+1} Title</h2>` + generateRandomContent();
-      }
-    }
-
+   
     // =============== Basic state for simulation ===============
+    const pdfTexts = [
+                                                              `         Introduction
+                                                                  Innovators and their Others
+
+
+                                          Before the twentieth century, the entrepreneur was someone who
+                                          managed an enterprise, undertaking projects unanced by others and seeing
+                                          them through (see Sarkar CyCfi). 9is once managerial ugure has in the early
+                                          twenty-urst century become mythic, symbolically bound to social progress
+                                          through invention, production, and experiment. Globally circulating digital
+                                          media7TED (Technology, Entertainment, Design) videos and Harvard Busi-
+                                          ness Review articles, for instance7popularize the entrepreneur as a normative
+                                          model of social life. 9e ethos of innovation and entrepreneurship, honed in
+                                          high-technology urms, has colonized philanthropy, development projects,
+                                          government policies, and even thinking about international diplomacy. Inno-
+                                          vation competitions, hackathons, and corporate mythologies around ugures
+                                          such as Bill Gates and Steve Jobs proliferate optimism that passionate dream-
+                                          ers can change the world. Austerity is no barrier; in myth, entrepreneurs are
+                                          fueled by nothing more than perseverance, empathy, and resourcefulness in
+                                          the face of adversity or injustice.
+                                          9e entrepreneur, no longer just a manager, has become an “agent of
+                                          change,” an ideal worker, an instrument of development, and an optimis-
+                                          tic and speculative citizen. 9is citizen cultivates and draws what resources
+                                          they can7their community ties, their capacity to labor, even their political
+                                          hope7into the pursuit of entrepreneurial experiments in development,
+                                          understood as economic growth and upliTh of the poor. Most important,
+                                          entrepreneurial citizens promise value with social surplus; as they pursue
+                                          their passions, they produce benefits for an amorphous but putatively
+                                          extensive social body. 9e entrepreneurial citizen belongs to an imagined
+                                          community of consumers, beneuciaries, and fellow entrepreneurs. If this
+                                          imaginary of the entrepreneurial citizen sounds grandiose and vague, this
+                                          is no coincidence; vagueness has been core to the global promise and por-
+                                          tability of the entrepreneurial ethos. State and corporate elites point to`,
+                                      `                               Chapter 1
+
+
+                                          entrepreneurs as those who can make opportunity out of the innumerable
+                                          shortcomings of development.
+                                          I call this economic and political regime entrepreneurial citizenship. Entre-
+                                          preneurial citizenship promises that citizens can construct markets, produce
+                                          value, and do nation building all at the same time. 9is book shows how
+                                          people adopt and champion this ethos in India in the early twenty-urst cen-
+                                          tury, articulating entrepreneurship with long-standing hierarchies and sys-
+                                          tems of meaning. Entrepreneurial citizenship apempts to hail people’s diverse
+                                          visions for development in India7desires citizens could channel toward
+                                          oppositional politics7and directs them toward the production of enter-
+                                          prise. Elites, political and industrial, produce this ideology. It makes the most
+                                          sense for India’s middle classes7those with access to institutional, capitalist,
+                                          and philanthropic patronage and investment. Entrepreneurial citizenship’s
+                                          language and social forms discipline political hope. As people7privately or
+                                          through nongovernmental organizations (NGOs)7pitch to funders, to inno-
+                                          vation competitions, or to corporate partners, they have to articulate dissat-
+                                          isfaction and demands as “opportunities” in patrons’ interests. 9ey monitor
+                                          themselves, their relations, and their environments as terrains of potential.
+                                          On these terrains, they look for opportunities to take on projects and redirect
+                                          their lives to add value. 9ese practices bend away from the slow, threaten-
+                                          ing work of building social movements; rather, people articulate desires to
+                                          work for change as demos and deliverables. Calls to entrepreneurial citizen-
+                                          ship promise national belonging for those who subsume their hopes, ideals,
+                                          particular knowledges, and relationships into experiments in projects that
+                                          promise value.
+                                          Proponents of this form7oThen technocrats and capital investors7prom-
+                                          ise that everyone is potentially an entrepreneur, from the least to the most
+                                          privileged. Prominent business school faculty Anil Gupta (—11tt) and C. K.
+                                          Prahalad (—110), for example, have celebrated the entrepreneurial capacities
+                                          of rural inventors and informal producers. A report by the Planning Commis-
+                                          sion of the Government of India (—1C—d) featured a woman selling colored
+                                          powder dyes on its cover, but its pages were ulled with policy recommenda-
+                                          tions targeted at developing high-tech ventures. In casting street hawkers and
+                                          elite technologists alike as entrepreneurs in potentia, proponents collapse the
+                                          vast gaps in money, formal knowledge, and authority that separate these two.
+                                          Entrepreneurial citizenship becomes one apempt at hegemony, a common
+                                          sense that casts the interests of ruling classes as everyone’s interests.
+                                          But this entrepreneurialism is not only a project of the self but also a project
+                                          that posits relations between selves and those they govern, guide, and employ:
+                                          leaders and led, benefactors and beneuciaries, the avant-garde and the laggards,
+                                          innovators and their others. Champions of innovation and entrepreneurship`,
+                                      `                                 Introduction
+
+
+                                          often leave this hierarchy implicit or deny its existence, leaving the problems
+                                          it raises unaddressed. So who becomes an innovator and who becomes the
+                                          innovator’s other? Who conceptualizes and valorizes, and who does the work?
+                                          Who modernizes whom, and toward what horizon?
+                                          Advocates of entrepreneurial citizenship argue that society must invest in
+                                          innovators, as innovators promise a beper future for all. 9is book depicts
+                                          the practices by which institutions, organizations, and individuals selectively
+                                          invest only in some people, some aspirations, and some projects in the name
+                                          of development. As powerful institutions actively cultivate “the capacity to
+                                          aspire” (Appadurai —110) through entrepreneurial citizenship, this book
+                                          illustrates the seductions, limits, and contradictions of entrepreneurial
+                                          citizenship’s promise of inclusion through the generation of economic and
+                                          social possibility.
+                                          9e politics of entrepreneurial citizenship play out di4usely, in sometimes
+                                          hazy, sometimes passionate, and sometimes convenient decisions people
+                                          make about who to work with, who to work for, who to invest in, and what
+                                          spaces to inhabit. Schools, training programs, venture capitalists, NGOs, and
+                                          entrepreneurial individuals cultivate and cull futures as they invest in some
+                                          projects and people and not others. As these actors decide whom to fund,
+                                          whom to have co4ee with, and whose feedback to take, they select and culti-
+                                          vate relation ships that produce emergent forms of hierarchy. 9ese decisions
+                                          play out moment to moment in studios, NGOs, and social innovation spaces,
+                                          shaped by assumptions about caste, class, region, and cosmopolitanism. 9ese
+                                          judgments are oThen glossed ones of “like-mindedness,” “authenticity,” and “ut.”
+                                          Value orients entrepreneurial citizens and those who invest in them. But it
+                                          is not tangible productivity, but what anthropologist Kaushik Sunder Rajan
+                                          characterizes as “the felt possibility of future productivity or prout” (—11tt,
+                                          C3). They produce and respond to vision, hope, and hype as they pursue
+                                          speculative capital investments; they promise not only unancial value but
+                                          also social value and legitimation for socially responsible funders and inves-
+                                          tors (Friednerff—1C8). With this book, I render these social forces visible so
+                                          that those working toward horizons of justice might channel their hopes and
+                                          labor inffways less easily appropriated and disciplined by capital investments,
+                                          and the demand for unancial value. I assess entrepreneurial citizenship in light
+                                          of theffstill lively legacies of enlightenment and colonial projects that position
+                                          some people as India’s past and fewer people7the educated, the modern-
+                                          ized, and now the innovators7as India’s future, deserving of investment in
+                                          the name of the nation.
+                                          9is book o4ers an ethnography of entrepreneurial citizenship. I pay close
+                                          apention to why entrepreneurial citizenship makes sense to people7what his-
+                                          tories, mediations, and ideologies make it compelling for those who respond`,
+                                      `                               Chapter 1
+
+
+                                          to its call. I link a4ects and practices to institutional, political, and political eco-
+                                          nomic structures that necessitate them. I begin by analyzing various visions in
+                                          India of how state and society ought to relate to one another and what kinds
+                                          of subjects have emerged in such arrangements. Entrepreneurial citizenship
+                                          is one such arrangement that emerged as the Indian state apempted to priva-
+                                          tize the functions of development to private industry and civil society while
+                                          managing surplus populations (Sanyal —11fi). I draw on studies of South Asia’s
+                                          history, political economy, and culture to show why these arrangements began
+                                          to make sense to elites and to many in the middle classes in the decades fol-
+                                          lowing liberalization in CyyC. I address questions about the organization of
+                                          neoliberal hegemonic projects and how they shape class, caste, and gender
+                                          relations (e.g., Bhap, Murty, and Ramamurthy —1C1). To understand what is
+                                          new about this arrangement, I turn to development studies’ examinations of
+                                          rule of experts and civil society NGOs and introduce the concept of “render-
+                                          ing entrepreneurial” to explain how the state goes beyond the management of
+                                          poverty to the proliferation of enterprise around poverty. I draw on science
+                                          and technology studies, economic sociology, and economic anthropology to
+                                          show the kinds of infrastructures, social relations, media forms, and episte-
+                                          mologies that make such enterprises seem tractable in practice and in promise.
+                                          From literature on human computer interaction (HCI) and design, I take the
+                                          insight that interfaces and materialities of mediation condition interactions
+                                          and intersubjectivities up close and at a distance (see, e.g., Lave and Wenger
+                                          CyyC; Dourish —110). Drawing from feminist analyses of labor, I analyze these
+                                          resulting subject formations and divisions of labor as regimes of invisibility
+                                          and hierarchies of value. Debates about power and values in design processes
+                                          (e.g., Friedman Cyytt; Nissenbaum —11C; Muller —116) must reckon with the
+                                          colonial, postcolonial, and capitalist processes that lend design and innovation
+                                          their social promise in the urst place. And I turn to postcolonial and feminist
+                                          studies to pose the question of how the social promise of innovation responds
+                                          to anxieties about di4erence and disorder in the national community. Policy
+                                          elites, for example, saw in India’s youthful population a productivity boon
+                                          or fodder for political ure; all depended on whether entrepreneurship and
+                                          industrialization could absorb and direct their energies (see Nilekani —11y,
+                                          8—; Gupta —1Ctt, —yfi, 60C).
+                                          I use citizenship here as both an emic and an analytic term. Many whom
+                                          I met in the course of ueldwork positioned entrepreneurship not just as an
+                                          economic activity but as a nation-building one. 9ey built on long-standing
+                                          understandings of development as a collective national project demanding
+                                          contributions from all citizens. As they spoke of their vocations and biogra-
+                                          phies, many spoke explicitly of problems of “civic sense” and what the govern-
+                                          ment ought to expect from them. People did not speak of “citizenship” per se`,
+                                      `                                 Introduction
+
+                                          but of the civic, of India, and of “doing one’s bit.” I also use citizenship as an
+                                          analytic category to draw into sharper relief the implications of people’s own
+                                          ideologies of belonging and speciuc state policies to recognize membership
+                                          in the nation. In chapter — I show how the state redeuned citizenship poli-
+                                          cies speciucally to include the technical expertise and wealth of diaspora in
+                                          the nation, elevating upper castes and classes with access to education over
+                                          laborers abroad. Within South Asian studies, sociologists and anthropolo-
+                                          gists have primarily discussed citizenship in terms of rights demanded from
+                                          the state, whether as consumers of services or as groups demanding a5rma-
+                                          tive action, land rights, or recognition; this book puts in the foreground the
+                                          responsibilities the state apempts to place on citizens as well.ffI bring this study
+                                          of citizenship into dialogue with the perspectives of science and technology
+                                          studies, which I argue ought to apend not only to the practices and histories
+                                          surrounding technology but also to the ways in which states hierarchize people
+                                          in terms of their capacities to o4er expertise recognized as high value at par-
+                                          ticular historical moments.
+                                                                  Innovation as the Rearticulation of Development
+                                          People champion a variety of cultural imaginaries under the seemingly global
+                                          banner of innovation. A challenge of this analysis is to locate the stabilities
+                                          among entrepreneurial and innovation projects while recognizing contesta-
+                                          tions and variations among them. Here, I begin by contrasting three di4erent
+                                          prescriptions for development from three elite policy actors. 9eir visions are
+                                          varyingly capitalist, socialist, and Gandhian, yet they share a belief in entre-
+                                          preneurial innovators as a vehicle for national growth and distribution. 9ey
+                                          share a vision that draws distinctions between valorized innovators and their
+                                          beneuciary others. Di4erences among them signal the varied historical strands
+                                          of development that still animate Indian politics today.
+                                          Arvind Subramanian, a former International Monetary Fund econo-
+                                          mist, served as chief economic advisor to Prime Minister Narendra Modi
+                                          from —1C0 through —1C3. Sam Pitroda headed the National Knowledge
+                                          Commission in the early —111s aTher decades leading technology infrastruc-
+                                          ture projects for the Congress Party. Anil Gupta, a Gandhian Indian Institute
+                                          of Management (IIM) professor, served the Modi government as second-
+                                          in-command of the National Innovation Foundation. 9e three men vary in
+                                          their political a5liations, but all envision entrepreneurship and innovation
+                                          as engines of development.
+                                          Addressing the University of Pennsylvania’s India Innovation Conference
+                                          in November —1C6, Subramanian speculated about India’s future, painting the
+                                          country as a temporal contradiction. “Despite being very poor, it is still cuping`,
+                                      `                                Chapter 1
+
+                                          edge... [India] does things which a country at its level of development is not
+                                          supposed to do”7Subramanian called this “the precocious model of devel-
+                                          opment.” He envisioned an India that exported information services like pro-
+                                          gramming and tech support; it trained skilled entrepreneurs and managers; its
+                                          wealthy invested their capital not only in India but in other countries. But this
+                                          precocious India had not yet arrived. “India contains all ten centuries within
+                                          it,” he explained, pointing to the low-skill workers and low-caste Indians still
+                                          mired in “backwards traditions” and without jobs. For Subramanian, inno-
+                                          vation was key to growth, but it was the province of capitalists and highly
+                                          educated managers and engineers who could invent it and organize it. He pre-
+                                          scribed policies to empower these elites through easing restrictions on land,
+                                          labor, trade, and foreign direct investment.
+                                          Pitroda is, like Subramanian, a nonresident Indian deeply involved in cen-
+                                          tral government policy. He headed the National Knowledge Commission
+                                          during Congress rule from —118 through —1C0. During a televised panel on
+                                          innovation and the Indian Institutes of Technology (IITs) staged by parlia-
+                                          ment, Pitroda spoke about the poorest Indians at “the bopom of the pyra-
+                                          mid” not as potential workers to be stabilized by incorporation in low-skill
+                                          jobs but as village Indians in need of technical solutions, innovation, and
+                                          upliTh. 9e market alone7and unance capital in particular7simply “extracts
+                                          value” through exchange, Pitroda argued in a swipe at commercial capital. By
+                                          contrast, engineers have the capacity to innovate by going to people, identi-
+                                          fying their problems, and “creating value” by solving them. Pitroda is him-
+                                          self an icon of this form; he had led the central government mission to bring
+                                          telephone service to rural India in the Cy31s (Chakravarpy —110). 9is was a
+                                          vision not of inventing for export but rather of dedicating professional Indian
+                                          inventiveness to domestic consumers’ and citizens’ needs.
+                                          A business professor with a starkly di4erent ethos, Gupta (—11y) posited
+                                          rural India as the true “hotbed of innovation.” He taught for decades at India’s
+                                          premier management institute, IIM-Ahmedabad, and led annual yatras, or
+                                          walking pilgrimages, through rural India on a search for “indigenous innova-
+                                          tion.” He mobilized audiences through TED Talk videos, a trade book (—1Ctt),
+                                          and Indian national television. A global voice, but always donning Indian kurta
+                                          and salwar, he made the case that rural Indians have appropriate technologies
+                                          and traditional knowledge ripe for capitalization. 9ese rural innovators, he
+                                          argued, made a4ordable, repairable, and clever technologies driven by their
+                                          impatience to make life easier. Gupta and his team documented these inven-
+                                          tions and aided in di4using them through patenting and licensing support, as
+                                          well as a decades-old newsleper translated into a variety of regional languages.`
+    ];
     let currentPage = 0;      // which page is currently displayed
     let currentScale = 1.0;   // for 'zoomIn'/'zoomOut'
-    const totalPages = 4;
+    const totalPages = 6;
+    for (let i = 0; i < pdfTexts.length; i++) {
+      const pageDiv = document.getElementById(`page${i}`);
+      if (pageDiv) {
+        const lines = pdfTexts[i].split('\n');
+        pageDiv.innerHTML = 
+          `<span class="page-number">${i+1}</span>` +
+          lines.map((line, idx) => {
+            const cls = idx === 0 ? 'line-text first-line' : 'line-text';
+            return `<p class="${cls}" style="margin:0;">${line.trim()}</p>`;
+          }).join('');
+      }
+    }
+    let fistHoldStart = null;
+    let wasPinching = false;
 
     // references to some DOM
     const container = document.querySelector('.container');
@@ -228,8 +518,9 @@
 
     // handle thumbnail clicks
     thumbPanel.addEventListener('click', (e) => {
-      if(e.target.classList.contains('thumb')){
-        const pg = parseInt(e.target.dataset.page, 10);
+      const thumb = e.target.closest('.thumb');
+      if (thumb && thumbPanel.contains(thumb)) {
+        const pg = parseInt(thumb.dataset.page, 10);
         showPage(pg);
       }
     });
@@ -249,7 +540,6 @@
       thumbs[pg].classList.add('highlight');
 
       currentPage = pg;
-      setScale(currentScale);
     }
 
     function nextPage() {
@@ -270,13 +560,7 @@
       readingArea.scrollTop += delta;
     }
 
-    // for 'zoomIn' / 'zoomOut'
-    function setScale(scaleVal){
-      readingArea.style.transform = `scale(${scaleVal})`;
-      currentScale = scaleVal;
-    }
-
-    // ============ Action Overlay ============
+    // Removed setScale function as scaling via CSS transform is no longer used
     const actionOverlay = document.getElementById('actionOverlay');
     let hideActionTimeout = null;
     function showAction(msg){
@@ -296,6 +580,7 @@
     const canvasCtx = canvasElement.getContext('2d');
     let isMarkMode = false;
     let drawingPoints = [];
+let openHoldStart = null;
 
     function resizeOverlay(){
       canvasElement.width = window.innerWidth;
@@ -321,21 +606,42 @@
     // =========== 3) Add cooldown to avoid repeated triggers ===========
     let lastGestureTime = 0; // store timestamp of last recognized gesture
     const GESTURE_COOLDOWN_MS = 2000; // 2 seconds cooldown
+let pinchTimestamps = [];
+
+function isPinch(hand) {
+  return distance(hand[4], hand[8]) < 0.03;
+}
+
+function isMiddlePinch(hand) {
+  return distance(hand[4], hand[12]) < 0.035;
+}
+
+function areHandsClose(h1, h2) {
+  return distance(h1[0], h2[0]) < 0.1;
+}
 const actionHistory = [];
 
 function performUndo() {
   if (actionHistory.length > 0) {
     const last = actionHistory.pop();
-    if (last.type === 'swipeUp' || last.type === 'swipeDown') {
-      showPage(last.page);
-    } else if (last.type === 'scrollUp' || last.type === 'scrollDown') {
-      readingArea.scrollTop = last.scroll;
-    } else if (last.type === 'zoomIn' || last.type === 'zoomOut') {
-      setScale(last.scale);
-    } else if (last.type === 'highlight') {
-      if (last.element && last.element.classList.contains('highlight-line')) {
-        last.element.classList.remove('highlight-line');
-      }
+    switch (last.type) {
+      case 'page':
+        showPage(last.page);
+        currentPage = last.page;
+        break;
+      case 'scroll':
+        readingArea.scrollTop = last.scroll;
+        break;
+      case 'zoom':
+        updateFontSize(last.fontSize);
+        break;
+      case 'highlight':
+        if (last.element && last.element.classList.contains('highlight-line')) {
+          last.element.classList.remove('highlight-line');
+        }
+        break;
+      default:
+        break;
     }
   }
 }
@@ -343,107 +649,153 @@ function performUndo() {
     function onResults(results) {
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      // always draw all detected hands
+      if (results.multiHandLandmarks) {
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const mLandmarks = results.multiHandLandmarks[i];
+          window.drawConnectors(
+            canvasCtx,
+            mLandmarks,
+            window.HAND_CONNECTIONS,
+            { color: '#888888', lineWidth: 1 }
+          );
+          window.drawLandmarks(
+            canvasCtx,
+            mLandmarks,
+            { color: '#FF0000', lineWidth: 1, radius: 2 }
+          );
+        }
+      }
 
 
       if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0){
         return;
       }
       const mainHand = results.multiHandLandmarks[0];
-
-      // draw each hand's landmarks
-      for(let i=0; i< results.multiHandLandmarks.length; i++){
-        const landmarks = results.multiHandLandmarks[i];
-        window.drawConnectors(
-          canvasCtx,
-          landmarks,
-          window.HAND_CONNECTIONS,
-          { color: '#888888', lineWidth: 1 }
-        );
-        window.drawLandmarks(
-          canvasCtx,
-          landmarks,
-          { color: '#FF0000', lineWidth: 1, radius: 2 }
-        );
-      }
-
+      
+      // 1) Enter/Exit Mark Mode: both hands open palm hold for 1s
       if (results.multiHandLandmarks.length === 2) {
-        const hand1 = results.multiHandLandmarks[0];
-        const hand2 = results.multiHandLandmarks[1];
- 
-        const index1 = hand1[8]; // index fingertip hand 1
-        const index2 = hand2[8]; // index fingertip hand 2
-        const d = distance(index1, index2);
- 
-        if (d < 0.05) {
+        const h1 = results.multiHandLandmarks[0];
+        const h2 = results.multiHandLandmarks[1];
+        const spread1 = checkFingerSpread(h1);
+        const spread2 = checkFingerSpread(h2);
+        if (spread1 >= 0.6 && spread2 >= 0.6) {
+          if (!openHoldStart) {
+            openHoldStart = Date.now();
+          } else if (Date.now() - openHoldStart > 1000) {
+            const now = Date.now();
+            if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
+              lastGestureTime = now;
+              isMarkMode = !isMarkMode;
+              showAction(isMarkMode ? 'Enter Mark Mode' : 'Exit Mark Mode');
+            }
+            openHoldStart = null;
+          }
+          return;
+        } else {
+          openHoldStart = null;
+        }
+      }
+      
+      // 3) Highlight in mark mode
+      if (isMarkMode && results.multiHandLandmarks.length === 1) {
+        const indexTip = mainHand[8];
+        const x = indexTip.x * canvasElement.width;
+        const y = indexTip.y * canvasElement.height;
+        const elements = document.elementsFromPoint(x, y);
+        const targetLine = elements.find(el => el.classList && el.classList.contains('line-text'));
+        if (targetLine && !targetLine.classList.contains('highlight-line')) {
+          targetLine.classList.add('highlight-line');
+          actionHistory.push({ type: 'highlight', element: targetLine });
+        }
+        return;
+      }
+      
+      // 4) Scroll Up/Down: single-hand pinch + vertical move
+      if (isPinch(mainHand)) {
+        const m = checkMovementDirection(mainHand);
+        if (m.up) {
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'scroll', scroll: readingArea.scrollTop });
+          showAction('Scroll Up');
+          scrollReadingArea(-70);
+          return;
+        } else if (m.down) {
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'scroll', scroll: readingArea.scrollTop });
+          showAction('Scroll Down');
+          scrollReadingArea(70);
+          return;
+        }
+      }
+      
+      // 5) Next Page: double pinch on pinch start
+      {
+        const isCurrentlyPinching = isPinch(mainHand);
+        // detect pinch start edge
+        if (isCurrentlyPinching && !wasPinching) {
+          const now = Date.now();
+          // keep only recent timestamps
+          pinchTimestamps = pinchTimestamps.filter(t => now - t < 600);
+          pinchTimestamps.push(now);
+          if (pinchTimestamps.length >= 2) {
+            lastGestureTime = now;
+            actionHistory.push({ type: 'page', page: currentPage });
+            showAction('Next Page');
+            if (currentPage < totalPages - 1) {
+              nextPage();
+            } else {
+              showPage(0);
+            }
+            pinchTimestamps = [];
+          }
+        }
+        wasPinching = isCurrentlyPinching;
+        // if pinch start handled a double pinch, do not proceed to other gestures
+        if (pinchTimestamps.length === 0 && isCurrentlyPinching && pinchTimestamps.length === 0) {
+          // pinch in progress but no double-pinch, ignore or continue
+        }
+        // no early return here; continue to other gestures if needed
+      }
+      
+      // 6) Zoom In/Out: thumb+middle pinch then horizontal movement
+      if (isMiddlePinch(mainHand)) {
+        const m = checkMovementDirection(mainHand);
+        if (m.forward) { // moving hand left
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'zoom', fontSize: currentFontSize });
+          showAction('Zoom In');
+          updateFontSize(currentFontSize + 2);
+          return;
+        } else if (m.backward) { // moving hand right
+          lastGestureTime = Date.now();
+          actionHistory.push({ type: 'zoom', fontSize: currentFontSize });
+          showAction('Zoom Out');
+          updateFontSize(Math.max(10, currentFontSize - 2));
+          return;
+        }
+      }
+      
+      // X) Undo: wave (open palm only) + horizontal move
+      if (!isPinch(mainHand) && !isMiddlePinch(mainHand) && checkFingerSpread(mainHand) >= 0.6) {
+        const m = checkMovementDirection(mainHand);
+        if (m.forward || m.backward) {
           const now = Date.now();
           if (now - lastGestureTime > GESTURE_COOLDOWN_MS) {
             lastGestureTime = now;
-            showAction('Index Fingers Crossed (Undo)');
+            showAction('Wave (Undo)');
             performUndo();
-            isMarkMode = false; // also exit mark mode if needed
           }
           return;
         }
       }
+      // New Gesture Logic End
 
-      // main logic with first hand
-      const gesture = detectGesture(mainHand);
 
-      if(gesture.name && gesture.changed){
-        const now = Date.now();
-        // check cooldown
-        if(now - lastGestureTime < GESTURE_COOLDOWN_MS){
-          // too soon => ignore
-          return;
-        }
-        lastGestureTime = now;
 
-        // 4) if in mark mode, only accept 'exitMark', else show error
-        if(isMarkMode && gesture.name!=='exitMark'){
-          showAction('Invalid posture now, please keep drawing');
-          return;
-        }
-
-        // push current state to actionHistory
-        actionHistory.push({type: gesture.name, page: currentPage, scroll: readingArea.scrollTop, scale: currentScale});
-        // otherwise handle gesture normally
-        const displayText = gestureNameToText(gesture.name);
-        showAction(displayText);
-        switch(gesture.name){
-          case 'swipeUp':
-            // previous page
-            prevPage();
-            break;
-          case 'swipeDown':
-            // next page
-            nextPage();
-            break;
-          case 'scrollUp':
-            scrollReadingArea(-70);
-            break;
-          case 'scrollDown':
-            scrollReadingArea(70);
-            break;
-          case 'zoomIn':
-            setScale(currentScale+0.1);
-            break;
-          case 'zoomOut':
-            setScale(currentScale-0.1>0.1?currentScale-0.1:0.1);
-            break;
-          case 'enterMark':
-            isMarkMode = true;
-            drawingPoints = [];
-            break;
-          case 'exitMark':
-            isMarkMode = false;
-            break;
-          default:
-            break;
-        }
-      }
 
       // if marking, record index finger path
-      if(isMarkMode){
+      if (isMarkMode && results.multiHandLandmarks.length === 1) {
         // index tip = #8
         const indexTip = mainHand[8];
         const x = indexTip.x * canvasElement.width;
