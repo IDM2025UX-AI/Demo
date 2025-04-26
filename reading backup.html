@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <title>Simulated PDF Reading with Gestures</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -33,12 +35,12 @@
     }
 
     .thumb-preview {
-      width: 100%;
+      width: 90px; 
       height: 120px;
       background: #fff;
       border-radius: 4px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      margin-bottom: 4px;
+      margin: 0 0 4px 18px; 
     }
 
     .thumb-label {
@@ -51,7 +53,7 @@
     .thumb {
       padding: 10px;
       margin: 10px;
-      background: rgba(0, 0, 0, 0.3); /* More translucent black for each thumbnail */
+      background: transparent;
       color: #fff;
       text-align: center;
       cursor: pointer;
@@ -59,6 +61,8 @@
     }
     .thumb:hover {
       background: rgba(120, 120, 120, 0.4);
+      transform: scale(1.05);             /* enlarge thumbnail slightly on hover */
+      transition: transform 0.2s ease;     /* smooth animation */
     }
     .thumb.highlight {
       background: #ffe770; /* highlight color for current page */
@@ -81,13 +85,14 @@
       background: #fff;
       border-radius: 6px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      padding: 20px;
+      padding: 120px 0px;
       display: none; /* only the current page is shown */
       position: relative;
       text-align: center;
     }
 
     .highlight-line {
+      padding: 0px 4px;                   /* adjust top/bottom and left/right padding */
       background-color: yellow;
     }
  
@@ -105,8 +110,8 @@
     /* The 'upload pdf' button on top-left */
     #fakeUploadBtn {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      top: 630px;
+      left: 610px;
       z-index: 999;
       padding: 8px 12px;
       background: #2196f3;
@@ -114,9 +119,23 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 16px;
     }
 
+    #downloadBtn {
+      position: absolute;
+      top: 10px;
+      right: 78px;
+      z-index: 1000;
+      padding: 6px 8px;
+      background: #2196f3;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
     /* Hidden video for camera input */
     #cameraInput {
       display: none;
@@ -170,7 +189,7 @@
     #gestureViz {
       position: fixed;
       bottom: 16px;
-      right: 16px;
+      right: 20px;
       width: 54px;
       height: 54px;
       pointer-events: none;
@@ -199,9 +218,6 @@
       z-index: 1002;
     }
 
-    #gestureViz .viz-dot.mark {
-      background: yellow;
-    }
 
     #gestureViz .viz-dot.undo::after {
       content: '✕';
@@ -216,8 +232,30 @@
   <!-- A 'upload pdf' button to enter the reading interface -->
   <button id="fakeUploadBtn">Upload a PDF to start reading</button>
 
+  <!-- Toggle overlay button, always visible -->
+  <button id="toggleOverlayBtn" style="
+    position: fixed;
+    bottom: 80px;
+    right: 27px;
+    z-index: 1001;
+    width: 36px;
+    height: 36px;
+    background: #eee;
+    color: #333;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    padding: 0;
+  ">?</button>
+
   <!-- Container that simulates the reading interface -->
   <div class="container">
+    <!-- Download current page button -->
+    <button id="downloadBtn">Download Highlights</button>
     <!-- Left side thumbnails -->
     <div class="thumbnail-panel" id="thumbnailPanel">
       <div class="thumb" data-page="0">
@@ -587,7 +625,37 @@
       currentPage = pg;
     }
 
-    function nextPage() {
+    async function exportPage() {
+        const { jsPDF } = window.jspdf;
+        const pageEl = document.getElementById(`page${currentPage}`);
+        const canvas = await html2canvas(pageEl, { backgroundColor: '#fff', scale: 2 });
+        const img = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: canvas.width>canvas.height?'landscape':'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        pdf.addImage(img, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`page-${currentPage+1}.pdf`);
+      }
+      document.getElementById('downloadBtn').addEventListener('click', exportPage);
+
+      // Overlay toggle state
+      let overlayEnabled = false;
+
+      const toggleBtn = document.getElementById('toggleOverlayBtn');
+      toggleBtn.addEventListener('click', () => {
+        overlayEnabled = !overlayEnabled;
+        toggleBtn.style.background = overlayEnabled ? '#2196f3' : '#eee';
+        toggleBtn.style.color = overlayEnabled ? '#fff' : '#333';
+        if (!overlayEnabled) {
+          actionOverlay.style.display = 'none';
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        }
+      });
+
+
+      function nextPage() {
       if(currentPage < totalPages-1){
         currentPage++;
         showPage(currentPage);
@@ -655,9 +723,10 @@
       }
     }
     function showAction(msg){
+      updateViz(msg);
+      if (!overlayEnabled) return;
       actionOverlay.textContent = msg;
       actionOverlay.style.display = 'block';
-      updateViz(msg); 
       if(hideActionTimeout){
         clearTimeout(hideActionTimeout);
       }
@@ -741,8 +810,8 @@ function performUndo() {
     function onResults(results) {
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      // always draw all detected hands
-      if (results.multiHandLandmarks) {
+      // only draw all detected hands if overlayEnabled
+      if (overlayEnabled && results.multiHandLandmarks) {
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
           const mLandmarks = results.multiHandLandmarks[i];
           window.drawConnectors(

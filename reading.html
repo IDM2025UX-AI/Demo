@@ -35,13 +35,12 @@
     }
 
     .thumb-preview {
-      width: 90px;   /* adjust to desired width */
-      height: 120px;  /* adjust to desired height */
+      width: 90px; 
+      height: 120px;
       background: #fff;
       border-radius: 4px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      display: block;
-      margin: 0 auto 4px;
+      margin: 0 0 4px 18px; 
     }
 
     .thumb-label {
@@ -93,7 +92,7 @@
     }
 
     .highlight-line {
-      padding: 2px 4px;                   /* adjust top/bottom and left/right padding */
+      padding: 0px 4px;                   /* adjust top/bottom and left/right padding */
       background-color: yellow;
     }
  
@@ -111,8 +110,8 @@
     /* The 'upload pdf' button on top-left */
     #fakeUploadBtn {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      top: 630px;
+      left: 610px;
       z-index: 999;
       padding: 8px 12px;
       background: #2196f3;
@@ -120,7 +119,7 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     #downloadBtn {
@@ -219,9 +218,6 @@
       z-index: 1002;
     }
 
-    #gestureViz .viz-dot.mark {
-      background: yellow;
-    }
 
     #gestureViz .viz-dot.undo::after {
       content: '✕';
@@ -235,6 +231,26 @@
 <body>
   <!-- A 'upload pdf' button to enter the reading interface -->
   <button id="fakeUploadBtn">Upload a PDF to start reading</button>
+
+  <!-- Toggle overlay button, always visible -->
+  <button id="toggleOverlayBtn" style="
+    position: fixed;
+    bottom: 80px;
+    right: 27px;
+    z-index: 1001;
+    width: 36px;
+    height: 36px;
+    background: #eee;
+    color: #333;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    padding: 0;
+  ">?</button>
 
   <!-- Container that simulates the reading interface -->
   <div class="container">
@@ -624,6 +640,20 @@
       }
       document.getElementById('downloadBtn').addEventListener('click', exportPage);
 
+      // Overlay toggle state
+      let overlayEnabled = false;
+
+      const toggleBtn = document.getElementById('toggleOverlayBtn');
+      toggleBtn.addEventListener('click', () => {
+        overlayEnabled = !overlayEnabled;
+        toggleBtn.style.background = overlayEnabled ? '#2196f3' : '#eee';
+        toggleBtn.style.color = overlayEnabled ? '#fff' : '#333';
+        if (!overlayEnabled) {
+          actionOverlay.style.display = 'none';
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        }
+      });
+
 
       function nextPage() {
       if(currentPage < totalPages-1){
@@ -693,9 +723,10 @@
       }
     }
     function showAction(msg){
+      updateViz(msg);
+      if (!overlayEnabled) return;
       actionOverlay.textContent = msg;
       actionOverlay.style.display = 'block';
-      updateViz(msg); 
       if(hideActionTimeout){
         clearTimeout(hideActionTimeout);
       }
@@ -779,8 +810,8 @@ function performUndo() {
     function onResults(results) {
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      // always draw all detected hands
-      if (results.multiHandLandmarks) {
+      // only draw all detected hands if overlayEnabled
+      if (overlayEnabled && results.multiHandLandmarks) {
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
           const mLandmarks = results.multiHandLandmarks[i];
           window.drawConnectors(
