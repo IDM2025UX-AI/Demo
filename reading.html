@@ -280,13 +280,32 @@
       z-index: 1002;
     }
 
-
     #gestureViz .viz-dot.undo::after {
       content: '✕';
       color: rgb(169, 169, 169);
       position: absolute;
       top: -1px; left: 1px;
       font-size: 12px;
+    }
+
+    #gestureViz .viz-dot.undo {
+      width: 15px;
+      height: 15px;
+    }
+    #gestureViz .viz-dot.undo::after {
+      font-size: 14px;
+      top: 0px;
+      left: 2px;
+    }
+
+    #gestureViz .viz-track {
+      position: absolute;
+      top: 12px;
+      left: 23px;            /* align with existing dot (left:23px) */
+      width: 12px;           /* same width as dot, so dot sits inside */
+      height: 36px;
+      background: rgba(0,0,0,0.12);   /* slightly lighter for subtle look */
+      border-radius: 6px;             /* fully rounded ends */
     }
   </style>
 </head>
@@ -834,32 +853,36 @@
     let hideActionTimeout = null;
     function updateViz(type) {
       const viz = document.getElementById('gestureViz');
-      viz.innerHTML = '';  // clear
+      viz.innerHTML = '';   // clear previous visualization
+
       switch(type) {
         case 'Scroll Up':
-          // draw a circle
-          viz.innerHTML = '<div class="viz-dot" style="top:calc(50% + 8px);left:calc(50% - 4px)"></div>';
+          // add track then dot near top
+          viz.innerHTML += '<div class="viz-track"></div>';
+          viz.innerHTML += '<div class="viz-dot" style="top:10px;left:23px"></div>';
           break;
         case 'Scroll Down':
-          viz.innerHTML = '<div class="viz-dot" style="top:calc(50% - 12px);left:calc(50% - 4px)"></div>';
+          // add track then dot near bottom
+          viz.innerHTML += '<div class="viz-track"></div>';
+          viz.innerHTML += '<div class="viz-dot" style="top:38px;left:23px"></div>';
           break;
         case 'Zoom In':
-          viz.innerHTML = '<div class="viz-dot" style="top:calc(50% - 4px);left:calc(50% + 8px)"></div>';
+          // smaller dot for zoom‑in
+          viz.innerHTML += '<div class="viz-dot" style="top:25px;left:35px;width:13px;height:13px"></div>';
           break;
         case 'Zoom Out':
-          viz.innerHTML = '<div class="viz-dot" style="top:calc(50% - 4px);left:calc(50% - 12px)"></div>';
+          // larger dot for zoom‑out
+          viz.innerHTML += '<div class="viz-dot" style="top:27px;left:11px;width:8px;height:8px"></div>';
           break;
         case 'Enter Mark Mode':
         case 'Exit Mark Mode':
-          // aligned two
-          viz.innerHTML =
-            '<div class="viz-dot" style="top:calc(50% - 12px);left:calc(50% - 18px)"></div>' +
-            '<div class="viz-dot" style="top:calc(50% - 12px);left:calc(50% + 2px)"></div>';
+          viz.innerHTML +=
+            '<div class="viz-dot" style="top:14px;left:16px"></div>' +
+            '<div class="viz-dot" style="top:14px;left:36px"></div>';
           break;
         case 'Next Page':
+          viz.innerHTML += '<div class="viz-dot" style="top:24px;left:23px"></div>';
           // blink twice
-          viz.innerHTML =
-            '<div class="viz-dot" style="top:calc(50% - 4px);left:calc(50% - 4px)"></div>'
           setTimeout(()=> {
             viz.querySelectorAll('.viz-dot').forEach(d=>d.style.opacity=1);
           }, 50);
@@ -871,10 +894,10 @@
           }, 450);
           break;
         case 'Wave (Undo)':
-          viz.innerHTML = '<div class="viz-dot undo" style="top:calc(50% - 4px);left:calc(50% - 4px)"></div>';
+          viz.innerHTML += '<div class="viz-dot undo" style="top:23px;left:21px"></div>';
           break;
         default:
-          // other no
+          // no special visualization
           break;
       }
     }
