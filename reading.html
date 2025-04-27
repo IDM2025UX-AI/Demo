@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Simulated PDF Reading with Gestures</title>
+  <title>Mova</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
@@ -111,7 +111,8 @@
     #fakeUploadBtn {
       position: absolute;
       top: 630px;
-      left: 610px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 999;
       padding: 8px 12px;
       background: #2196f3;
@@ -152,7 +153,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 1000;
+      z-index: 2100;
     }
 
     /* Action text overlay at bottom center */
@@ -168,6 +169,67 @@
       z-index: 1100;
       font-size: 14px;
       display: none;
+    }
+
+    /* Tutorial overlay */
+    #tutorialOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 18px;
+      z-index: 2000;
+    }
+    
+    #tutorialOverlay #tutorialText {
+      margin-top: -80px; 
+      margin-bottom: 20px;
+    }
+    #tutorialOverlay #tutorialFeedback {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #0f0;
+    }
+    #tutorialOverlay #tutorialHeader {
+      position: absolute;
+      top: 16px;         
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 26px;
+      font-weight: bold;
+    }
+
+    #uploadHeader {
+      position: absolute;
+      top: 30px;           
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 28px;
+      font-weight: bold;
+      color: #2196f3;
+      display: none;        /* shown after tutorial */
+      z-index: 998;
+    }
+    #tutorialCloseBtn {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: transparent;
+      border: none;
+      color: #b4b4b4;
+      font-size: 28px;
+      cursor: pointer;
+      z-index: 2101;
+    }
+    #tutorialCloseBtn:hover {
+      color: #ffffff;
     }
 
     .pageContent .page-number {
@@ -229,8 +291,15 @@
   </style>
 </head>
 <body>
+  <div id="tutorialOverlay">
+    <button id="tutorialCloseBtn" aria-label="Close Tutorial">&times;</button>
+    <div id="tutorialHeader">Tutorial</div>
+    <div id="tutorialText">Try: Pinch twice quickly with one hand — Next Page</div>
+    <div id="tutorialFeedback"></div>
+  </div>
   <!-- A 'upload pdf' button to enter the reading interface -->
-  <button id="fakeUploadBtn">Upload a PDF to start reading</button>
+  <button id="fakeUploadBtn">Upload</button>
+  <div id="uploadHeader">Upload PDF to Start Reading</div>
 
   <!-- Toggle overlay button, always visible -->
   <button id="toggleOverlayBtn" style="
@@ -240,8 +309,8 @@
     z-index: 1001;
     width: 36px;
     height: 36px;
-    background: #eee;
-    color: #333;
+    background: #2196f3;
+    color: #fff;
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -312,6 +381,48 @@
 
   <script>
     let currentFontSize = 18;  // initial font size in px
+    // Records the most recent action text shown via showAction()
+    let lastActionName = '';
+    // Tracks the last gesture text we already evaluated in the tutorial step
+    let tutorialLastCheckedAction = '';
+    // ===== Tutorial logic =====
+    const tutorialSteps = [
+      'Next Page',
+      'Scroll Up',
+      'Scroll Down',
+      'Zoom In',
+      'Zoom Out',
+      'Wave (Undo)',
+      'Enter Mark Mode',
+      'Exit Mark Mode'
+    ];
+
+    const tutorialDesc = [
+      'Pinch twice quickly with one hand — Next Page',
+      'Pinch and move up with one hand — Scroll Up',
+      'Pinch and move down with one hand — Scroll Down',
+      'Pinch with middle finger and thumb, move left — Zoom In',
+      'Pinch with middle finger and thumb, move right — Zoom Out',
+      'Wave one open hand side to side — Undo',
+      'Open both palms for 1 second — Enter Mark Mode',
+      'Open both palms for 1 second again — Exit Mark Mode'
+    ];
+    let tutorialIndex = 0;
+    const tutorialOverlay = document.getElementById('tutorialOverlay');
+    const tutorialText = document.getElementById('tutorialText');
+    const tutorialFeedback = document.getElementById('tutorialFeedback');
+    // Disable upload until tutorial completes
+    document.getElementById('fakeUploadBtn').disabled = true;
+    document.getElementById('fakeUploadBtn').style.opacity = '0.5';
+    // Close‑tutorial (×) button: skip tutorial and enable upload
+    document.getElementById('tutorialCloseBtn').addEventListener('click', () => {
+      tutorialIndex = tutorialSteps.length;          // mark tutorial finished
+      tutorialOverlay.style.display = 'none';        // hide overlay
+      const btn = document.getElementById('fakeUploadBtn');
+      btn.disabled = false;                          // enable upload
+      btn.style.opacity = '1';
+      document.getElementById('uploadHeader').style.display = 'block';
+    });
     function updateFontSize(newSize) {
       currentFontSize = newSize;
       document.querySelectorAll('.line-text').forEach(el => {
@@ -568,8 +679,8 @@
                                           tions and aided in di4using them through patenting and licensing support, as
                                           well as a decades-old newsleper translated into a variety of regional languages.`
     ];
-    let currentPage = 0;      // which page is currently displayed
-    let currentScale = 1.0;   // for 'zoomIn'/'zoomOut'
+    let currentPage = 0;      
+    let currentScale = 1.0;   
     const totalPages = 6;
     for (let i = 0; i < pdfTexts.length; i++) {
       const pageDiv = document.getElementById(`page${i}`);
@@ -594,9 +705,12 @@
 
     // click the upload button => show container & default to page0
     fakeUploadBtn.addEventListener('click', () => {
-      fakeUploadBtn.style.display = 'none';
-      container.style.display = 'block';
-      showPage(0);
+      if (!tutorialOverlay || tutorialOverlay.style.display === 'none') {
+        fakeUploadBtn.style.display = 'none';
+        document.getElementById('uploadHeader').style.display = 'none';
+        container.style.display = 'block';
+        showPage(0);
+      }
     });
 
     // handle thumbnail clicks
@@ -625,25 +739,67 @@
       currentPage = pg;
     }
 
-    async function exportPage() {
-        const { jsPDF } = window.jspdf;
-        const pageEl = document.getElementById(`page${currentPage}`);
-        const canvas = await html2canvas(pageEl, { backgroundColor: '#fff', scale: 2 });
-        const img = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-          orientation: canvas.width>canvas.height?'landscape':'portrait',
-          unit: 'px',
-          format: [canvas.width, canvas.height]
+    /**  Export all pages that contain at least one highlight
+     *   as a single PDF called highlighted-pages.pdf
+     */
+    async function exportHighlightedPages() {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'px', format: 'a4' });
+
+      let firstPageAdded = false;
+
+      for (let i = 0; i < totalPages; i++) {
+        const pageDiv = document.getElementById(`page${i}`);
+        if (!pageDiv) continue;
+        // skip pages without highlight
+        if (!pageDiv.querySelector('.highlight-line')) continue;
+
+        // make sure the page is visible for screenshot
+        const prevDisplay = pageDiv.style.display;
+        pageDiv.style.display = 'block';
+
+        // use html2canvas to capture the element
+        const canvas = await html2canvas(pageDiv, {
+          backgroundColor: '#fff',
+          scale: 2
         });
-        pdf.addImage(img, 'PNG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`page-${currentPage+1}.pdf`);
+        const imgData = canvas.toDataURL('image/png');
+        const pageWidth  = canvas.width;
+        const pageHeight = canvas.height;
+
+        if (!firstPageAdded) {
+          // set PDF page to match first capture size
+          pdf.deletePage(1); // remove the default blank page
+          pdf.addPage([pageWidth, pageHeight], pageWidth > pageHeight ? 'landscape' : 'portrait');
+          pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+          firstPageAdded = true;
+        } else {
+          pdf.addPage([pageWidth, pageHeight], pageWidth > pageHeight ? 'landscape' : 'portrait');
+          pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+        }
+
+        // restore original display state
+        pageDiv.style.display = prevDisplay;
       }
-      document.getElementById('downloadBtn').addEventListener('click', exportPage);
+
+      if (!firstPageAdded) {
+        alert('No highlighted pages to export.');
+        return;
+      }
+
+      pdf.save('highlighted-pages.pdf');
+    }
+
+    // bind new exporter
+    document.getElementById('downloadBtn')
+            .addEventListener('click', exportHighlightedPages);
 
       // Overlay toggle state
-      let overlayEnabled = false;
+      let overlayEnabled = true;
 
       const toggleBtn = document.getElementById('toggleOverlayBtn');
+      toggleBtn.style.background = '#2196f3';
+      toggleBtn.style.color = '#fff';
       toggleBtn.addEventListener('click', () => {
         overlayEnabled = !overlayEnabled;
         toggleBtn.style.background = overlayEnabled ? '#2196f3' : '#eee';
@@ -723,8 +879,11 @@
       }
     }
     function showAction(msg){
+      lastActionName = msg;   // remember last action for tutorial checking
       updateViz(msg);
-      if (!overlayEnabled) return;
+      const tutorialActive = (tutorialIndex < tutorialSteps.length);
+      // During tutorial we suppress the text; show it only after tutorial and when overlay is enabled
+      if (tutorialActive || !overlayEnabled) return;
       actionOverlay.textContent = msg;
       actionOverlay.style.display = 'block';
       if(hideActionTimeout){
@@ -808,22 +967,53 @@ function performUndo() {
 }
 
     function onResults(results) {
+      // Tutorial step check
+      if (tutorialIndex < tutorialSteps.length) {
+        // Evaluate only when a *new* action appears
+        if (lastActionName !== tutorialLastCheckedAction) {
+          tutorialLastCheckedAction = lastActionName;
+
+          if (lastActionName === tutorialSteps[tutorialIndex]) {
+            tutorialFeedback.textContent = 'Correct!';
+            tutorialIndex++;
+
+            // reset guard so same action can be reused later if needed
+            tutorialLastCheckedAction = '';
+
+            if (tutorialIndex < tutorialSteps.length) {
+              setTimeout(() => {
+                tutorialFeedback.textContent = '';
+                tutorialText.textContent = 'Try: ' + tutorialDesc[tutorialIndex];
+              }, 800);            // slight pause before next prompt
+            } else {
+              // Tutorial done
+              tutorialOverlay.style.display = 'none';
+              const btn = document.getElementById('fakeUploadBtn');
+              btn.disabled = false; btn.style.opacity = '1';
+              document.getElementById('uploadHeader').style.display = 'block';
+            }
+          }
+        }
+        // Always continue drawing / gesture logic so showAction can update `lastActionName`
+      }
+      // flag: are we still in tutorial?
+      const tutorialActive = (tutorialIndex < tutorialSteps.length);
       // clear
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      // only draw all detected hands if overlayEnabled
-      if (overlayEnabled && results.multiHandLandmarks) {
+      // draw landmarks during tutorial, when overlay is enabled, **or while in mark mode**
+      if ((tutorialActive || overlayEnabled || isMarkMode) && results.multiHandLandmarks) {
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
           const mLandmarks = results.multiHandLandmarks[i];
           window.drawConnectors(
             canvasCtx,
             mLandmarks,
             window.HAND_CONNECTIONS,
-            { color: '#888888', lineWidth: 1 }
+            { color: '#ACACAC', lineWidth: 1 }
           );
           window.drawLandmarks(
             canvasCtx,
             mLandmarks,
-            { color: '#FF0000', lineWidth: 1, radius: 2 }
+            { color: '#ACACAC', lineWidth: 1, radius: 2 }
           );
         }
       }
